@@ -102,7 +102,7 @@ All paths are absolute under `/Users/sergey/code/sergeysyrota/personal/`.
 | Item | Detail |
 |---|---|
 | MCU | ESP32-C3 SuperMini, 4 MB embedded flash (verified) |
-| Relay | **GPIO 4**. Polarity unknown → config `relay_active_high` (default `true`); verify on bench. Drive the pin to the *default/OFF* level as the very first thing in `setup()` (before Wi-Fi/BLE). GPIO 4 is not a C3 strapping pin (those are 2, 8, 9), so boot glitches are not expected. |
+| Relay | **GPIO 4**. **Active-high, verified on bench 2026-11-07**: GPIO HIGH = LED/relay on = charger ON; LOW = charger OFF. Config `relay_active_high` default `true`. Drive the pin to the *default/OFF* level as the very first thing in `setup()` (before Wi-Fi/BLE). GPIO 4 is not a C3 strapping pin (those are 2, 8, 9), so boot glitches are not expected. |
 | Status LED | On-board LED is GPIO 8 (active-low) on most SuperMinis — optional status blink (Wi-Fi/AP mode/relay). Note GPIO 8 is a strapping pin; only drive it after boot. |
 | Button | BOOT = GPIO 9. Optional: long-press at runtime → force setup AP / factory reset Wi-Fi. |
 | OBD dongle | Veepeak BLE, MAC `8C:DE:52:DE:B4:A0`, in the car. Must be within BLE range of the charger location (garage). |
@@ -432,6 +432,11 @@ Highcharts. Mobile-first.
    available version; "Install" runs OTA with progress; reboot.
 8. **Log** — event log.
 
+### Secrets are write-only (owner decision)
+Wi-Fi password, Pushover token/user key (and any future secret) can be **set or replaced** from the UI
+but are **never returned** by any API or rendered on a page. APIs return only `"<field>_set": true|false`;
+an empty/omitted field on PUT means "keep current"; an explicit clear action removes it.
+
 ### JSON API (UI is just a client of this)
 ```
 GET  /api/status                 # everything on the Status page
@@ -510,16 +515,37 @@ Stats endpoints stream records in chunks (chunked response) — never load a who
 
 ## 14. Open items (decide during build; don't block milestones 1–3)
 
-Resolved: OTA default URL → GitHub Releases of the public repo (§12); flash = 4 MB (§1);
+Resolved: relay polarity → active-high (§3); UI design → `prototypes/option-5-app.html` (app style); OTA default URL → GitHub Releases of the public repo (§12); flash = 4 MB (§1);
 entry-condition operators → literal strict/inclusive (§7.3); hotspot policy (§11).
 
 1. *(resolved)*
 2. *(resolved)*
-3. **Relay polarity** (`relay_active_high`) — verify on bench.
+3. *(resolved)* Relay polarity: active-high (HIGH = charger ON), verified on bench.
 4. **Charging power sign** (§8.4) — verify on first real charge.
 5. **BLE range** from the charger location to the car's OBD port — verify early (milestone 4 spike).
 6. Whether to notify when the car arrives and starts charging *after* an ON transition already
    happened (currently: **no**, page only — owner said don't repeat alerting).
+
+### Discovery findings (2026-11-07, spike on the real board)
+- **Toolchain:** PlatformIO 6.2.0 in project `.venv` (Python 3.14). Platform = **pioarduino**
+  `platform-espressif32` (stable) → Arduino core **3.3.12**, ESP-IDF **v5.5.5**. Libs resolved:
+  NimBLE-Arduino 2.x, ArduinoJson 7.4.3, ESP32Async/ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0.
+- **Rollback:** the precompiled Arduino bootloader already has `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`.
+  No custom bootloader needed: override `bool verifyRollbackLater() { return true; }` and call
+  `esp_ota_mark_app_valid_cancel_rollback()` after the health checks (§12). USB-flashed images report
+  state `UNDEFINED` (no otadata) — expected.
+- **Image size:** spike linking Wi-Fi + TLS + NimBLE + AsyncWebServer + ArduinoJson + LittleFS =
+  **1.275 MB = 77.8 % of a 1.6 MB slot**. NimBLE role-disable flags didn't change it (linker already
+  drops unused code). Budget ~200 KB for all app code before the 90 % guard. Fallback if needed:
+  shrink LittleFS (768 KB → 512 KB) and grow app slots to ~1.73 MB each (one USB reflash).
+- **Heap (no TLS yet):** boot 229 KB free → Wi-Fi AP + web 155 KB → **NimBLE init 92 KB**
+  (largest block 78 KB) → after a 15 s scan 89 KB. TLS (~45 KB) fits with NimBLE initialized but
+  idle; still never concurrent with an active GATT session. TLS measurement pending STA Wi-Fi.
+- **LittleFS:** must mount with the partition label: `LittleFS.begin(true, "/littlefs", 10, "littlefs")`
+  (default looks for `spiffs`).
+- **Price oracle:** `price-worker.serg-syrota.workers.dev` currently returns 404 on every path. For
+  milestone-2 acceptance, run the reference `prices.ts` locally on the same captured fixtures instead.
+- **ComEd fixtures** captured to `test/fixtures/` (5-min feed, day-ahead today/tomorrow, actuals).
 
 ---
 

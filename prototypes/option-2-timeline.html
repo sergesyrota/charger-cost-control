@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Charger — Option 2: Timeline</title>
+<style>
+:root{
+  --bg:#0a0d10;--panel:#11161b;--panel2:#161c22;--line:#222a33;--grid:#1a2129;--text:#d8e0e8;--muted:#7a8794;--dim:#4d5966;
+  --on:#3ddc84;--on-a:rgba(61,220,132,.13);--off:#ff6161;--off-a:rgba(255,97,97,.12);--amber:#ffb224;--amber-a:rgba(255,178,36,.14);
+  --act:#4cc9f0;--da:#8796aa;--min:#b88cff;--sched:#5b7cff;--sched-a:rgba(91,124,255,.13);--soc:#e6e1c5;--kw:#ff8fd0;
+  --focus:#4cc9f0;--shadow:0 10px 40px rgba(0,0,0,.5);
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"JetBrains Mono","Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){
+  --bg:#f3f5f7;--panel:#fff;--panel2:#f7f9fb;--line:#dde3e9;--grid:#edf0f3;--text:#0f151b;--muted:#5d6975;--dim:#9aa5b0;
+  --on:#0a9a55;--on-a:rgba(10,154,85,.12);--off:#d33b3b;--off-a:rgba(211,59,59,.10);--amber:#b77400;--amber-a:rgba(214,140,0,.14);
+  --act:#0077b6;--da:#7b8796;--min:#7a4fd6;--sched:#3657e0;--sched-a:rgba(54,87,224,.10);--soc:#6b5d1e;--kw:#c0307e;--focus:#0077b6;--shadow:0 10px 40px rgba(20,30,40,.18);color-scheme:light}}
+:root[data-theme=light]{
+  --bg:#f3f5f7;--panel:#fff;--panel2:#f7f9fb;--line:#dde3e9;--grid:#edf0f3;--text:#0f151b;--muted:#5d6975;--dim:#9aa5b0;
+  --on:#0a9a55;--on-a:rgba(10,154,85,.12);--off:#d33b3b;--off-a:rgba(211,59,59,.10);--amber:#b77400;--amber-a:rgba(214,140,0,.14);
+  --act:#0077b6;--da:#7b8796;--min:#7a4fd6;--sched:#3657e0;--sched-a:rgba(54,87,224,.10);--soc:#6b5d1e;--kw:#c0307e;--focus:#0077b6;--shadow:0 10px 40px rgba(20,30,40,.18);color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 var(--sans);-webkit-text-size-adjust:100%}
+body{overflow-x:hidden;padding-bottom:70px}
+.m,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--act)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 12px}
+/* header */
+.top{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:20}
+.back{font:11px var(--mono);color:var(--muted);text-decoration:none;white-space:nowrap}
+.brand{font:700 13px var(--mono);letter-spacing:.08em;flex:1;text-align:center;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+@media (max-width:520px){.brand{visibility:hidden}}
+.brand i{font-style:normal;color:var(--act)}
+.ib{background:none;border:1px solid var(--line);border-radius:6px;width:32px;height:30px;display:grid;place-items:center;color:var(--muted)}
+.ib:hover{color:var(--text);border-color:var(--dim)}
+.modepill{max-width:46vw;overflow:hidden;text-overflow:ellipsis;font:11px var(--mono);border:1px solid var(--line);border-radius:99px;padding:4px 9px;background:var(--panel);color:var(--text);white-space:nowrap}
+/* banner */
+.banner{margin:10px 0 0;padding:10px 12px;border:1px solid var(--amber);background:var(--amber-a);border-radius:8px;display:flex;gap:10px;align-items:flex-start;font-size:13px}
+.banner b{font-family:var(--mono)}
+.banner.info{border-color:var(--dim);background:var(--panel2)}
+.banner .x{margin-left:auto}
+/* hero */
+.hero{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;padding:14px 0 6px;align-items:center}
+.relay{grid-row:span 2;display:flex;flex-direction:column;align-items:center;justify-content:center;width:92px;height:92px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel);font-family:var(--mono)}
+.relay .big{font-size:30px;font-weight:800;letter-spacing:.02em;line-height:1}
+.relay .sm{font-size:10px;color:var(--muted);letter-spacing:.1em;margin-top:5px;text-transform:uppercase}
+.relay.on{border-color:var(--on);box-shadow:inset 0 0 0 3px var(--on-a)}.relay.on .big{color:var(--on)}
+.relay.off .big{color:var(--off)}
+.relay.warn{border-color:var(--amber)}.relay.warn .big{color:var(--amber)}
+.verdict{font-size:16px;font-weight:600;line-height:1.3}
+.why{color:var(--muted);font-size:13px}
+.why b{color:var(--text);font-weight:500}
+.next{grid-column:1/-1;margin-top:8px;font:12.5px var(--mono);padding:7px 10px;border-left:3px solid var(--act);background:var(--panel);border-radius:0 6px 6px 0}
+.next .k{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0 12px}
+.kpi{background:var(--panel);padding:9px 11px;min-width:0}
+.kpi .l{font:10.5px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;gap:6px;align-items:center}
+.kpi .v{font:600 22px var(--mono);font-variant-numeric:tabular-nums;line-height:1.2;white-space:nowrap}
+.kpi .v small{font-size:13px;color:var(--muted);font-weight:400}
+.kpi .s{font:11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{display:inline-block;font:10px var(--mono);padding:1px 5px;border-radius:4px;border:1px solid var(--line);color:var(--muted);vertical-align:1px}
+.tag.est{border-color:var(--amber);color:var(--amber)}
+.tag.on{border-color:var(--on);color:var(--on)}.tag.off{border-color:var(--off);color:var(--off)}
+.tag.ac{border-color:var(--act);color:var(--act)}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:7px;padding:7px 12px;font-size:13px}
+.btn:hover{border-color:var(--dim)}
+.btn.pri{background:var(--act);border-color:var(--act);color:#061018;font-weight:600}
+.btn.sm{padding:3px 8px;font-size:11.5px;font-family:var(--mono)}
+.btn.ghost{background:none}
+.btn.danger{color:var(--off)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+/* panels */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.ph{display:flex;align-items:center;gap:8px;padding:10px 12px 0;flex-wrap:wrap}
+.ph h2{margin:0;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ph .sp{flex:1}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{background:none;border:0;padding:4px 9px;font:11px var(--mono);color:var(--muted)}
+.seg button.a{background:var(--panel2);color:var(--text);box-shadow:inset 0 -2px 0 var(--act)}
+#chart{position:relative;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:crosshair;padding:4px 0 0}
+#chart svg{display:block;width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 6px;padding:2px 10px 10px}
+.lg{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid transparent;border-radius:99px;padding:2px 7px;font:10.5px var(--mono);color:var(--muted)}
+.lg i{width:14px;height:3px;border-radius:2px;display:inline-block}
+.lg.off{opacity:.38;text-decoration:line-through}
+.lg:hover{border-color:var(--line)}
+.hint{font:10.5px var(--mono);color:var(--dim);padding:0 12px 8px}
+/* svg classes */
+.g-grid{stroke:var(--grid);stroke-width:1}
+.g-zero{stroke:var(--dim);stroke-width:1;stroke-dasharray:2 3}
+.g-day{stroke:var(--dim);stroke-width:1}
+.t-ax{fill:var(--muted);font:10px var(--mono)}
+.t-day{fill:var(--text);font:700 10px var(--mono);letter-spacing:.1em}
+.l-da{fill:none;stroke:var(--da);stroke-width:1.5;stroke-dasharray:4 3}
+.l-act{fill:none;stroke:var(--act);stroke-width:2.2}
+.d-5{fill:var(--act);opacity:.85}
+.l-on{stroke:var(--on);stroke-width:1.3;stroke-dasharray:6 3}
+.l-off{stroke:var(--off);stroke-width:1.3;stroke-dasharray:6 3}
+.l-min{stroke:var(--min);stroke-width:1.3;stroke-dasharray:1.5 3}
+.t-on{fill:var(--on);font:600 10px var(--mono)}.t-off{fill:var(--off);font:600 10px var(--mono)}.t-min{fill:var(--min);font:600 10px var(--mono)}
+.r-on{fill:var(--on-a)}
+.r-onbar{fill:var(--on)}
+.r-proj{fill:url(#hatch)}
+.hatch-l{fill:var(--on);opacity:.32}
+.r-sched{fill:var(--sched-a)}
+.r-schedbar{fill:var(--sched)}
+.t-sched{fill:var(--sched);font:600 9.5px var(--mono)}
+.l-now{stroke:var(--text);stroke-width:1.4}
+.r-nowtag{fill:var(--text)}
+.t-nowtag{fill:var(--bg);font:700 10px var(--mono)}
+.l-sel{stroke:var(--amber);stroke-width:1.4}
+.r-seltag{fill:var(--amber)}.t-seltag{fill:#111;font:700 10px var(--mono)}
+.d-sel{fill:var(--amber);stroke:var(--panel);stroke-width:2}
+.d-low{fill:none;stroke:var(--min);stroke-width:2}
+.a-soc{fill:var(--soc);opacity:.13}
+.l-soc{fill:none;stroke:var(--soc);stroke-width:1.6}
+.l-socp{fill:none;stroke:var(--soc);stroke-width:1.6;stroke-dasharray:3 3}
+.l-kw{fill:none;stroke:var(--kw);stroke-width:1.3}
+.r-lane{fill:var(--panel2)}
+.r-past{fill:var(--bg);opacity:.25}
+.t-lane{fill:var(--dim);font:9px var(--mono);letter-spacing:.08em}
+.d-now{fill:var(--act);stroke:var(--panel);stroke-width:2}
+/* detail */
+.grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
+.det{padding:4px 12px 12px}
+.dh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
+.dh .t{font:700 18px var(--mono)}
+.dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.dl div{background:var(--panel2);border-radius:8px;padding:7px 9px;min-width:0}
+.dl .l{font:10px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.dl .v{font:600 17px var(--mono);white-space:nowrap}
+.dl .s{font:10.5px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsay{margin-top:9px;font-size:13.5px;line-height:1.5}
+.dsay code{font:12px var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px}
+/* explainer */
+.chain{list-style:none;margin:0;padding:8px 12px 12px;display:grid;gap:0;counter-reset:s}
+.step{position:relative;display:grid;grid-template-columns:26px 1fr auto;gap:2px 10px;align-items:center;padding:9px 10px;border:1px solid transparent;border-radius:9px;cursor:pointer;background:none;text-align:left;width:100%}
+.step:hover{border-color:var(--line);background:var(--panel2)}
+.step .n{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--dim);display:grid;place-items:center;font:700 10px var(--mono);color:var(--muted);background:var(--panel);z-index:1}
+.step .tt{font-weight:600;font-size:13.5px}
+.step .tx{grid-column:2;font-size:12.5px;color:var(--muted)}
+.step .st{grid-row:span 2;font:10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+.step .ed{font:11px var(--mono);color:var(--act);opacity:0;transition:opacity .15s}
+.step:hover .ed,.step:focus-visible .ed{opacity:1}
+.chain li{position:relative}
+.chain li:not(:last-child)::after{content:"";position:absolute;left:21px;top:34px;bottom:-9px;width:1.5px;background:var(--line)}
+.step.won{border-color:var(--on);background:var(--on-a)}
+.step.won.offv{border-color:var(--off);background:var(--off-a)}
+.step.won .n{border-color:currentColor;background:var(--on);color:#04140b}
+.step.won.offv .n{background:var(--off);color:#1b0606}
+.step.won .tx{color:var(--text)}
+.step.won .st{color:var(--on)}.step.won.offv .st{color:var(--off)}
+.step.pass .st{color:var(--muted)}
+.step.blocked .st{color:var(--amber)}.step.blocked .n{border-color:var(--amber);color:var(--amber)}
+.step.skip,.step.idle{opacity:.55}
+.ovl{margin:0 12px 12px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;font-size:12.5px;color:var(--muted)}
+.ovl b{color:var(--text)}
+.ovl.hit{border-color:var(--off);color:var(--text)}
+/* menu row */
+.menu-row{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.menu-row button{flex:1 1 auto;min-width:90px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:12px var(--mono);text-align:left;display:flex;justify-content:space-between;gap:8px}
+.menu-row button span{color:var(--muted)}
+.menu-row button:hover{border-color:var(--dim)}
+.sys{font:11px var(--mono);color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px;padding:10px 2px 20px;border-top:1px dashed var(--line)}
+.sys b{color:var(--text);font-weight:500}
+.ok{color:var(--on)}.bad{color:var(--off)}.wn{color:var(--amber)}
+/* sheet */
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+#scrim.show{opacity:1;pointer-events:auto}
+#sheet{position:fixed;left:0;right:0;bottom:0;max-height:90vh;background:var(--panel);border-top:1px solid var(--line);border-radius:16px 16px 0 0;transform:translateY(105%);transition:transform .25s ease;z-index:50;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+#sheet.show{transform:none}
+#sheet>header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+#sheet>header h2{margin:0;font:700 13px var(--mono);letter-spacing:.1em;text-transform:uppercase;flex:1}
+#sheet>header .grab{position:absolute;top:5px;left:50%;width:36px;height:4px;border-radius:2px;background:var(--line);margin-left:-18px}
+#sh-b{overflow:auto;padding:12px 14px 24px;overscroll-behavior:contain}
+@media (min-width:900px){
+  #sheet{left:auto;top:0;width:520px;max-height:none;border-radius:0;border-left:1px solid var(--line);border-top:0;transform:translateX(105%)}
+  #sheet>header .grab{display:none}
+  .grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+/* forms */
+.f{display:grid;gap:4px;margin:0 0 12px}
+.f>label,.lab{font:11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.f .help{font-size:12px;color:var(--muted)}
+input[type=text],input[type=number],input[type=password],input[type=time],select,textarea{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 9px;width:100%;min-width:0}
+input.m,select.m{font-family:var(--mono)}
+input:focus,select:focus,textarea:focus{border-color:var(--focus);outline:none}
+input.err{border-color:var(--off)}
+.errt{font:11.5px var(--mono);color:var(--off);min-height:0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row>*{min-width:0}
+.card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px;background:var(--panel2)}
+.card h3{margin:0 0 6px;font:700 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.modes{display:grid;gap:6px}
+.mode{display:grid;grid-template-columns:20px 1fr;gap:2px 8px;border:1px solid var(--line);border-radius:9px;padding:9px 10px;cursor:pointer;background:var(--panel2)}
+.mode input{margin:3px 0 0}
+.mode b{font-size:13.5px}.mode span{grid-column:2;font-size:12px;color:var(--muted)}
+.mode:has(input:checked){border-color:var(--act);box-shadow:inset 0 0 0 1px var(--act)}
+.sw{display:flex;align-items:center;gap:8px;font-size:13px}
+.foot{position:sticky;bottom:-24px;background:var(--panel);padding:10px 0 4px;margin-top:8px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+/* logic editor */
+.stabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px}
+.stab{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:6px 10px;font:13px var(--sans);white-space:nowrap;display:flex;gap:6px;align-items:center}
+.stab.a{border-color:var(--act);box-shadow:inset 0 -2px 0 var(--act)}
+.stab small{font:9.5px var(--mono);color:var(--muted)}
+.blk{border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin:0 0 8px;background:var(--panel)}
+.blk .say{font-size:12.5px;margin:0 0 6px}
+.blk .say b{font-family:var(--mono)}
+.blk.act{border-color:var(--act)}
+.bgrid{display:grid;grid-template-columns:repeat(4,1fr) 30px;gap:6px;align-items:end}
+.bgrid label{font:9.5px var(--mono);color:var(--muted);text-transform:uppercase}
+.bgrid input{padding:6px 6px;font-family:var(--mono)}
+.cgrid{display:grid;grid-template-columns:70px 70px 1fr 30px;gap:6px;align-items:center;margin-bottom:6px}
+.x{background:none;border:1px solid var(--line);border-radius:6px;height:30px;color:var(--muted)}
+.x:hover{color:var(--off);border-color:var(--off)}
+.warnbox{border:1px solid var(--amber);background:var(--amber-a);border-radius:8px;padding:8px 10px;font-size:12.5px;margin:0 0 10px}
+.errbox{border:1px solid var(--off);background:var(--off-a);border-radius:8px;padding:8px 10px;font-size:12.5px;margin:0 0 10px}
+.lc-reg-on{fill:var(--on-a)}.lc-reg-hold{fill:var(--amber-a)}.lc-reg-off{fill:var(--off-a)}.lc-reg-bad{fill:url(#hatch2)}
+.lc-b{fill:none;stroke:var(--line)}
+.lc-bact{fill:none;stroke:var(--act);stroke-width:1.5}
+.lc-ent{fill:var(--sched)}
+.t-band{fill:var(--text);font:600 10px var(--mono)}
+.d-you{fill:var(--act);stroke:var(--panel);stroke-width:2.5}
+.d-you2{fill:none;stroke:var(--act);stroke-width:1.5;stroke-dasharray:2 2}
+textarea.json{font:12px/1.45 var(--mono);min-height:320px;white-space:pre;tab-size:2}
+/* tables / lists */
+table{width:100%;border-collapse:collapse;font:12px var(--mono)}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:10.5px;text-transform:uppercase;padding:5px 4px;border-bottom:1px solid var(--line)}
+td{padding:6px 4px;border-bottom:1px solid var(--grid);white-space:nowrap}
+td.r,th.r{text-align:right}
+.log{list-style:none;margin:0;padding:0;font:12px var(--mono)}
+.log li{display:grid;grid-template-columns:86px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)}
+.log time{color:var(--muted)}
+.log .k{font-size:10px;padding:0 4px;border-radius:3px;border:1px solid var(--line);margin-right:5px;color:var(--muted)}
+.log .k.tr{color:var(--on);border-color:var(--on)}.log .k.po{color:var(--act);border-color:var(--act)}.log .k.er{color:var(--off);border-color:var(--off)}
+.bar{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--act);width:0;transition:width .2s}
+.wl{display:grid;gap:4px;margin:6px 0}
+.wl button{display:flex;justify-content:space-between;border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:7px 9px;font:12.5px var(--mono);text-align:left}
+.wl button.a{border-color:var(--act)}
+.day{display:grid;grid-template-columns:38px 1fr;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--grid)}
+.day .dn{font:700 12px var(--mono);padding-top:4px}
+.dbar{position:relative;height:10px;background:var(--panel);border:1px solid var(--line);border-radius:3px;margin:4px 0 6px}
+.dbar i{position:absolute;top:0;bottom:0;background:var(--sched);border-radius:2px}
+.wrow{display:grid;grid-template-columns:1fr auto 1fr 30px;gap:6px;align-items:center;margin-bottom:5px}
+.wrow input{font-family:var(--mono);padding:5px 6px}
+/* menu pop, demo, toast */
+#pop{position:fixed;top:46px;right:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);z-index:45;padding:5px;display:none;min-width:190px}
+#pop.show{display:block}
+#pop button{display:flex;justify-content:space-between;gap:12px;width:100%;background:none;border:0;padding:8px 10px;border-radius:6px;font:12.5px var(--mono);text-align:left}
+#pop button:hover{background:var(--panel2)}
+#pop button span{color:var(--muted)}
+#demo{position:fixed;left:10px;bottom:10px;z-index:30;font:11px var(--mono)}
+#demo>button{background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:5px 10px;color:var(--muted);box-shadow:var(--shadow)}
+#demo .dm{display:none;position:absolute;bottom:34px;left:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px;width:250px;box-shadow:var(--shadow)}
+#demo.open .dm{display:block}
+#demo .dm button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:7px 9px;font:11.5px var(--mono)}
+#demo .dm button.a{background:var(--panel2);color:var(--act)}
+#demo .dm button:hover{background:var(--panel2)}
+#toast{position:fixed;left:50%;bottom:16px;transform:translate(-50%,300%);visibility:hidden;background:var(--text);color:var(--bg);padding:9px 14px;border-radius:8px;font:12.5px var(--mono);z-index:60;transition:transform .25s;max-width:calc(100vw - 32px)}
+#toast.show{transform:translate(-50%,0);visibility:visible}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{display:grid;place-items:center;text-align:center;height:240px;color:var(--muted);font:12px var(--mono);padding:20px;background:repeating-linear-gradient(135deg,transparent 0 10px,var(--grid) 10px 11px)}
+.empty b{display:block;color:var(--amber);font-size:13px;margin-bottom:4px}
+@media (max-width:380px){.dl .v{font-size:15px}.dl div{padding:6px 7px}.kpi .v{font-size:19px}.relay{width:80px;height:80px}.relay .big{font-size:25px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="back" href="index.html">← all options</a>
+  <div class="brand">CHARGER<i>/</i>TIMELINE</div>
+  <button class="modepill" data-act="open" data-s="control" id="modepill">AUTO</button>
+  <button class="ib" data-act="theme" title="Theme: auto / dark / light" aria-label="Toggle theme">◐</button>
+  <button class="ib" data-act="pop" aria-label="Menu">≡</button>
+</header>
+<div id="pop" role="menu"></div>
+<main class="wrap">
+  <div id="banner"></div>
+  <section id="hero"></section>
+  <section class="panel" aria-label="Price timeline">
+    <div class="ph"><h2>Timeline · ¢/kWh supply</h2><span class="sp"></span>
+      <div class="seg" id="zoom"><button data-act="zoom" data-z="all" class="a">36h</button><button data-act="zoom" data-z="night">tonight</button></div>
+      <button class="btn sm ghost" data-act="tonow">⌖ now</button>
+    </div>
+    <div id="chart" tabindex="0" aria-label="Interactive price timeline. Use left/right arrow keys to move by an hour."></div>
+    <div class="legend" id="legend"></div>
+    <div class="hint">drag / tap to scrub · ←/→ hour · shift = 5 min · esc = now</div>
+  </section>
+  <div class="grid2">
+    <section class="panel" id="detail" aria-live="polite"></section>
+    <section class="panel" id="explain"></section>
+  </div>
+  <nav class="menu-row" id="menurow"></nav>
+  <div class="sys" id="sys"></div>
+</main>
+<div id="scrim" data-act="close"></div>
+<aside id="sheet" aria-hidden="true" role="dialog"><header><span class="grab"></span><h2 id="sh-t"></h2><button class="ib" data-act="close" aria-label="Close">✕</button></header><div id="sh-b"></div></aside>
+<div id="demo"><div class="dm" id="dm"></div><button data-act="demo">▸ demo scenario</button></div>
+<div id="toast" role="status"></div>
+<script>
+"use strict";
+/* ============ time model (Chicago wall clock, minutes from Fri Nov 6 19:00) ============ */
+const BASE=19*60, TEND=2160, NOW=1660, MINW=0; // NOW = Sat 22:40
+const DAYN=['Fri','Sat','Sun'], WDN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], WDAY=[5,6,0];
+const pad=n=>String(n).padStart(2,'0');
+const clk=t=>{const m=BASE+t;return{d:Math.floor(m/1440),h:Math.floor(m/60)%24,mi:((m%60)+60)%60}};
+const hm=t=>{const c=clk(t);return pad(c.h)+':'+pad(c.mi)};
+const dt=t=>DAYN[clk(t).d]+' '+hm(t);
+const fp=v=>v==null||isNaN(v)?'—':(v<0?'−':'')+Math.abs(Math.round(v*10)/10).toFixed(1);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clone=o=>JSON.parse(JSON.stringify(o));
+const $=id=>document.getElementById(id);
+
+/* ============ mock /api/prices ============ */
+// hourly day-ahead, index 0 = Fri 19:00 … 36 = Sun 07:00 (hour-start representation)
+const DA=[4.6,3.9,3.1,2.6,2.2, 1.9,1.6,1.3,1.1,1.0,1.4,2.2,3.0,3.6,3.4,3.1,2.9,2.8,2.7,2.9,3.2,3.8,4.6,5.1,4.8,4.2,3.6,2.6,2.1, 1.8,1.4,0.9,-0.7,0.4,1.1,2.0,2.6];
+const ACT=DA.slice(0,27).map((v,h)=>Math.round((v+0.55*Math.sin(h*1.7)+0.3*Math.cos(h*0.9))*10)/10);
+const CURH=27; // Sat 22:00 slot
+const hIdx=(d,h)=>d*24+h-19;
+
+/* ============ base logic (docs/reference/bolt-monitor-logic.json) ============ */
+const LOGIC0={"states":{"Разряд":{"entry_conditions":[{"type":"soc","value":80,"operator":">="}],"charging_logic":[{"soc":70,"price_on":-1,"price_off":-0.5,"known_minutes":30},{"soc":20,"price_on":-0.5,"price_off":0,"known_minutes":20},{"soc":0,"price_on":2,"price_off":3}]},"Заряд":{"entry_conditions":[{"type":"soc","value":20,"operator":"<="}],"charging_logic":[{"soc":80,"price_on":-1,"price_off":-0.5,"known_minutes":20},{"soc":40,"price_on":0,"price_off":0.5,"known_minutes":20},{"soc":0,"price_on":2,"price_off":3}]},"Поездка":{"entry_conditions":[],"charging_logic":[{"soc":0,"price_on":3,"price_off":3}]}}};
+
+const CFG0={mode:'auto',until:null,target:null,minOffset:0.5,defRelay:false,
+  sched:{0:[[60,240]],1:[[60,300]],2:[[60,300]],3:[[60,300]],4:[[60,300]],5:[[60,300]],6:[]},
+  wifi:{ssid:'syrota-iot'},po:{token:'a7k2••••••••••••••••••3qz',user:'u9x1••••••••••••••••mmp',device:'',enabled:true},
+  mac:'8C:DE:52:A1:3F:07',pollOn:60,pollOff:60,thrW:500,sign:'abs',polarity:'high',probe:30,stale:20,fullHold:0,
+  ota:'https://github.com/sergesyrota/charger-cost-control/releases/latest/download/manifest.json'};
+
+const SCEN={
+ 1:{name:'Charging',now:1.2,est:false,age:2,clock:true,mode:'schedule_price',sel:'Поездка',sticky:'Разряд',relay:true,
+    car:{status:'charging',soc:52,seen:0,kw:6.8,kwh:2.8,cost:0.04},on:[[320,590],[1635,NOW]],soc:[[0,40],[320,40],[590,85],[840,85],[1080,50],[1635,50],[NOW,52]],det:[[1635,NOW]]},
+ 2:{name:'Waiting',now:4.1,est:false,age:3,clock:true,mode:'auto',sel:'',sticky:'Разряд',relay:false,
+    car:{status:'asleep',soc:64,seen:38,kw:0,kwh:0,cost:0},on:[[320,590]],soc:[[0,40],[320,40],[590,85],[840,85],[1080,64],[NOW,64]],det:[]},
+ 3:{name:'ON, car not charging',now:2.6,est:true,age:26,clock:true,mode:'schedule_price',sel:'Поездка',sticky:'Разряд',relay:true,
+    car:{status:'not_detected',soc:52,seen:120,kw:0,kwh:0,cost:0},on:[[320,590],[1635,NOW]],soc:[[0,40],[320,40],[590,85],[840,85],[1080,50],[1540,52]],det:[]},
+ 4:{name:'Booting / unknown',now:null,est:false,age:null,clock:false,mode:'auto',sel:'',sticky:'Разряд',relay:false,
+    car:{status:'not_detected',soc:64,seen:null,kw:0,kwh:0,cost:0,never:true},on:[],soc:[],det:[],rollback:true},
+ 5:{name:'Manual ON until 06:00',now:1.6,est:false,age:1,clock:true,mode:'manual_on',until:2100,sel:'',sticky:'Разряд',relay:true,
+    car:{status:'charging',soc:58,seen:0,kw:6.8,kwh:10.8,cost:0.27},on:[[320,590],[1565,NOW]],soc:[[0,40],[320,40],[590,85],[840,85],[1080,42],[1565,42],[NOW,58]],det:[[1565,NOW]]}
+};
+
+/* ============ app state ============ */
+let S, UI={sel:null,zoom:'all',layers:{da:1,act:1,f5:1,thr:1,min:1,relay:1,sched:1,soc:1,kw:0},sheet:null,draft:null,lstate:null,ltab:'vis',theme:0,logF:'all'};
+
+function load(n){
+  const sc=SCEN[n];
+  const keepCfg=S?S.cfg:null, keepLogic=S?S.logic:null;
+  S={scn:n,clock:sc.clock,nowP:sc.now,est:sc.est,age:sc.age,relay:sc.relay,sticky:sc.sticky,
+    cfg:keepCfg?Object.assign(clone(keepCfg),{mode:sc.mode,until:sc.until??null}):Object.assign(clone(CFG0),{mode:sc.mode,until:sc.until??null}),
+    logic:keepLogic?clone(keepLogic):clone(LOGIC0),car:clone(sc.car),on:clone(sc.on),socK:clone(sc.soc),det:sc.det,
+    rollback:!!sc.rollback,uptime:sc.clock?'3d 04:12':'00:00:42',reset:sc.clock?'power-on':'ota-rollback (task wdt)',
+    heap:sc.clock?{free:118,min:84,blk:68}:{free:141,min:139,blk:96},rssi:-61,ip:'192.168.1.47',fw:sc.rollback?'1.3.1':'1.3.2',log:mkLog(n)};
+  S.logic.state_select=sc.sel;
+  if(!sc.clock){S.cfg.until=null}
+  // 5-minute points
+  S.five=[];
+  if(sc.clock){
+    const off=[.3,-.2,.1,-.3,.2,0,-.1,.2,-.2,.1,0,-.1];
+    for(let i=0;i<12;i++)S.five.push({t:26*60+i*5,p:Math.round((ACT[26]+off[i])*10)/10});
+    if(!sc.est){const o=[.2,-.1,0,-.2,.1,0,.1,-.1];for(let i=0;i<8;i++)S.five.push({t:CURH*60+i*5,p:Math.round((sc.now+o[i])*10)/10})}
+    else {for(let i=0;i<3;i++)S.five.push({t:CURH*60+i*5-0,p:Math.round((2.9-i*.1)*10)/10})}
+  }
+  UI.sel=null;
+  compute(false);
+}
+
+function mkLog(n){
+  if(n===4)return[
+    {t:'+00:00:00',k:'sys',m:'Boot: reset reason ota-rollback (task wdt) — running previous image 1.3.1'},
+    {t:'+00:00:00',k:'tr',m:'Relay → OFF (default state; no clock)'},
+    {t:'+00:00:04',k:'sys',m:'Wi-Fi connected syrota-iot, 192.168.1.47, −61 dBm'},
+    {t:'+00:00:09',k:'er',m:'SNTP: no response from pool.ntp.org, retrying'},
+    {t:'+00:00:31',k:'er',m:'SNTP: no response from time.google.com, retrying'}];
+  const L=[
+    {t:'Sat 00:20',k:'tr',m:'Relay → ON · Price is low (1.6¢ ≤ 2¢) — Bolt/Разряд soc≥0'},
+    {t:'Sat 00:21',k:'po',m:'Pushover sent: ON … Charging started: 6.8 kW, 41%.'},
+    {t:'Sat 03:02',k:'er',m:'5-min feed: TLS handshake timeout (retry ok 03:07)'},
+    {t:'Sat 04:50',k:'tr',m:'Relay → OFF · Price is high (1.9¢ > −0.5¢), Bolt/Разряд (85%)'},
+    {t:'Sat 04:50',k:'po',m:'Pushover sent: OFF: Price is high (1.9¢ > −0.5¢), Bolt/Разряд (85%, 0m ago).'},
+    {t:'Sat 04:50',k:'sys',m:'State Разряд entered (SOC 85% ≥ 80)'},
+    {t:'Sat 18:05',k:'sys',m:'Car poll: asleep (228334 → ERROR)'}];
+  if(n===1||n===3){L.push({t:'Sat 21:58',k:'sys',m:'state_select → Поездка (forced from UI)'},{t:'Sat 22:15',k:'tr',m:'Relay → ON · Price is low (1.4¢ ≤ 3¢) — Bolt/Поездка (forced)'});
+    L.push(n===1?{t:'Sat 22:16',k:'po',m:'Pushover sent: ON … Charging started: 6.8 kW, 50%.'}:{t:'Sat 22:16',k:'po',m:'Pushover sent: ON … Car not detected.'});
+    if(n===3)L.push({t:'Sat 22:14',k:'er',m:'5-min feed stale (no success for 26 min) — using day-ahead estimate'});}
+  if(n===5)L.push({t:'Sat 21:05',k:'tr',m:'Relay → ON · Manual ON until Sun 06:00'},{t:'Sat 21:06',k:'po',m:'Pushover sent: Manual: ON until 06:00. Charging started: 6.8 kW, 42%.'});
+  if(n===2)L.push({t:'Sat 22:35',k:'sys',m:'Price 4.1¢ above start −0.5¢ — staying OFF'});
+  return L.reverse();
+}
+
+/* ============ PriceEngine (port of prices.ts, mock) ============ */
+function lowest7(t){
+  const c=clk(t);let best=null,at=null;
+  const cand=c.h<17?[...Array(8).keys()].map(h=>[c.d,h]):[...Array(23-c.h).keys()].map(i=>[c.d,c.h+1+i]).concat([...Array(8).keys()].map(h=>[c.d+1,h]));
+  for(const[d,h]of cand){const i=hIdx(d,h);if(i<0||i>=DA.length)continue;if(best==null||DA[i]<best){best=DA[i];at=i*60}}
+  return best==null?null:{p:Math.round(best*10)/10,t:at};
+}
+function priceAt(t){
+  if(!S.clock)return{p:null,src:'no data'};
+  const h=Math.floor(t/60);
+  if(h<CURH)return{p:ACT[h],src:'actual (hourly)'};
+  if(h===CURH&&t<=NOW)return{p:S.nowP,src:S.est?'estimated (day-ahead)':'5-min avg'};
+  return{p:DA[h]??null,src:'day-ahead forecast'};
+}
+
+/* ============ DecisionEngine (PLAN §7) ============ */
+const condOk=(c,soc)=>{const v=+c.value;switch(c.operator){case'>':return soc>v;case'>=':return soc>=v;case'<':return soc<v;case'<=':return soc<=v}return false};
+function pickState(lg,sticky,soc){
+  if(lg.state_select&&lg.states[lg.state_select])return{name:lg.state_select,how:'forced'};
+  for(const n of Object.keys(lg.states)){const ec=lg.states[n].entry_conditions||[];if(ec.length&&ec.every(c=>condOk(c,soc)))return{name:n,how:n===sticky?'sticky':'entered'}}
+  return{name:sticky,how:'sticky'};
+}
+function blocksOf(lg,name){const s=lg.states[name];if(s&&s.charging_logic&&s.charging_logic.length)return s.charging_logic;return(lg.states.default&&lg.states.default.charging_logic)||[]}
+function blockFor(cl,soc){if(!cl.length)return-1;for(let i=0;i<cl.length;i++)if(soc>=+cl[i].soc)return i;return cl.length-1}
+const rp=(v,mp)=>v==='min'?mp:+v;
+function evalPrice(lg,sticky,soc,price,mp,minute,relay){
+  const st=pickState(lg,sticky,soc),cl=blocksOf(lg,st.name),bi=blockFor(cl,soc);
+  if(bi<0)return{ok:false,state:st.name,how:st.how};
+  const b=cl[bi],on=rp(b.price_on,mp),off=rp(b.price_off,mp),km=+b.known_minutes||0,enough=!km||minute>=km;
+  let r=relay,why,code;
+  if(relay&&price>off){r=false;code='high';why=`Price is high (${fp(price)}¢ > ${fp(off)}¢)`}
+  else if(relay&&!enough){r=false;code='conf';why=`Not enough confidence yet (:${pad(minute)} < :${pad(km)})`}
+  else if(!relay&&price<=on&&enough){r=true;code='low';why=`Price is low (${fp(price)}¢ ≤ ${fp(on)}¢)`}
+  else if(relay){code='keep';why=`Keep charging — ${fp(price)}¢ is not above stop ${fp(off)}¢`}
+  else if(price<=on){code='wait';why=`Price ${fp(price)}¢ ≤ ${fp(on)}¢, waiting for :${pad(km)} of the hour (confidence)`}
+  else{code='wait';why=`Waiting — ${fp(price)}¢ is above start ${fp(on)}¢`}
+  return{ok:true,state:st.name,how:st.how,bi,b,cl,on,off,km,enough,relay:r,why,code,price};
+}
+function winAt(sched,t){const c=clk(t),wd=WDAY[c.d],m=c.h*60+c.mi;for(const w of sched[wd]||[])if(m>=w[0]&&m<w[1])return WDN[wd]+' '+mm(w[0])+'–'+mm(w[1]);return null}
+const mm=m=>pad(Math.floor(m/60))+':'+pad(m%60);
+function decide(c){
+  let mode=c.mode,res=null;const steps=[];
+  if(mode==='manual_on'||mode==='manual_off'){
+    if(c.until!=null&&c.t>=c.until){steps.push({k:'manual',s:'pass',x:`Override ended ${dt(c.until)} → back to Auto`});mode='auto'}
+    else{const on=mode==='manual_on';res={relay:on,by:'manual',reason:`Manual ${on?'ON':'OFF'}${c.until!=null?' until '+dt(c.until):' (until changed)'}`};steps.push({k:'manual',s:'won',x:res.reason})}
+  }else steps.push({k:'manual',s:'idle',x:'No override active'});
+  if(res)steps.push({k:'schedule',s:'skip',x:'Not checked — override wins'});
+  else if(mode==='schedule'||mode==='schedule_price'){
+    if(!c.clock)steps.push({k:'schedule',s:'blocked',x:'Needs a valid clock — not synced yet'});
+    else{const w=winAt(c.sched,c.t);
+      if(w){res={relay:true,by:'schedule',reason:`Schedule window ${w}`};steps.push({k:'schedule',s:'won',x:`Inside window ${w} → ON`})}
+      else if(mode==='schedule'){res={relay:false,by:'schedule',reason:'Outside schedule windows (schedule only)'};steps.push({k:'schedule',s:'won',x:'Outside all windows → OFF (schedule only)'})}
+      else steps.push({k:'schedule',s:'pass',x:'Outside all windows → falls through to price'})}
+  }else steps.push({k:'schedule',s:'idle',x:mode==='auto'?'Not used in Auto (price) mode':'Not used'});
+  let P=null;
+  if(c.clock&&c.price!=null)P=evalPrice(c.logic,c.sticky,c.soc,c.price,c.mp,c.t%60,c.relay);
+  if(res)steps.push({k:'price',s:'skip',x:'Not checked'});
+  else if(mode==='auto'||mode==='schedule_price'){
+    if(!c.clock)steps.push({k:'price',s:'blocked',x:'No clock → no ComEd prices (TLS needs time)'});
+    else if(c.price==null)steps.push({k:'price',s:'blocked',x:'Price unknown (5-min feed stale > 20 min, no day-ahead)'});
+    else if(!P.ok)steps.push({k:'price',s:'blocked',x:`State “${P.state}” has no charging blocks`});
+    else{res={relay:P.relay,by:'price',reason:P.why};steps.push({k:'price',s:'won',x:P.why})}
+  }else steps.push({k:'price',s:'idle',x:'Not used in this mode'});
+  if(res)steps.push({k:'default',s:'skip',x:'Not needed'});
+  else{const why=!c.clock?'No clock yet':c.price==null?'No price':'Nothing decided';res={relay:c.defRelay,by:'default',reason:`${why} → default ${c.defRelay?'ON':'OFF'}`};steps.push({k:'default',s:'won',x:res.reason})}
+  let ov=null;res.pre=res.relay;
+  if(res.by!=='manual'&&res.relay&&c.socKnown){if(Math.round(c.soc)>=100)ov='Bolt is full';else if(c.target&&c.soc>=c.target)ov=`SOC target ${c.target}% reached`;if(ov){res.relay=false;res.reason=ov}}
+  const sticky=(c.clock&&P&&P.how!=='forced')?P.state:c.sticky;
+  return Object.assign(res,{steps,ov,P,sticky,mode});
+}
+function ctx(t,o){return{t,clock:S.clock,price:o.price,mp:S.mp,soc:o.soc,socKnown:!S.car.never,relay:o.relay,mode:S.cfg.mode,until:S.cfg.until,sched:S.cfg.sched,logic:S.logic,sticky:o.sticky,target:S.cfg.target,defRelay:S.cfg.defRelay}}
+
+function compute(fromUser,why){
+  const l7=S.clock?lowest7(NOW):null;S.l7=l7;S.mp=l7?Math.round((l7.p+(+S.cfg.minOffset||0))*10)/10:null;
+  const prev=S.relay;
+  S.D=decide(ctx(NOW,{price:S.nowP,soc:S.car.soc,relay:S.relay,sticky:S.sticky}));
+  S.relay=S.D.relay;S.sticky=S.D.sticky;
+  if(S.D.mode==='auto'&&S.cfg.mode.startsWith('manual')&&S.cfg.until!=null&&NOW>=S.cfg.until){S.cfg.mode='auto';S.cfg.until=null}
+  if(fromUser&&prev!==S.relay){
+    const msg=(why?why+': ':'')+(S.relay?'ON':'OFF')+' — '+S.D.reason;
+    S.log.unshift({t:dt(NOW),k:'tr',m:'Relay → '+(S.relay?'ON':'OFF')+' · '+S.D.reason});
+    if(S.cfg.po.enabled)S.log.unshift({t:dt(NOW),k:'po',m:'Pushover sent: '+msg});
+    if(S.relay){S.on.push([NOW,NOW]);if(S.car.status!=='not_detected'){S.car.status='online';setTimeout(()=>{if(S.relay&&S.car.status==='online'){S.car.status='charging';S.car.kw=6.8;S.car.seen=0;render();toast(`Post-ON probe (${S.cfg.probe}s): charging 6.8 kW, ${Math.round(S.car.soc)}%`)}},1600)}}
+    else{S.car.kw=0;if(S.car.status==='charging')S.car.status='online'}
+    toast((S.cfg.po.enabled?'Pushover → ':'Relay ')+msg);
+  }
+  project();
+}
+function project(){
+  const out=[];S.proj=out;if(!S.clock)return;
+  let relay=S.relay,soc=S.car.soc,sticky=S.sticky;const det=S.car.status!=='not_detected';
+  for(let t=NOW+5;t<=TEND;t+=5){
+    const pr=priceAt(t),d=decide(ctx(t,{price:pr.p,soc,relay,sticky}));
+    relay=d.relay;sticky=d.sticky;const kw=relay&&det&&Math.round(soc)<100?6.8:0;
+    out.push({t,relay,soc,kw,price:pr.p,d});soc=Math.min(100,soc+kw*5/60/65*100);
+  }
+}
+function socAt(t){
+  if(t>NOW){const p=S.proj.find(x=>x.t>=t);return p?p.soc:S.car.soc}
+  const k=S.socK;if(!k.length)return null;if(t<=k[0][0])return k[0][1];
+  for(let i=1;i<k.length;i++)if(t<=k[i][0]){const a=k[i-1],b=k[i];return a[1]+(b[1]-a[1])*(t-a[0])/((b[0]-a[0])||1)}
+  return k[k.length-1][1];
+}
+const relayAt=t=>S.on.some(([a,b])=>t>=a&&t<(b===NOW?NOW+.1:b));
+function nextChange(){
+  if(!S.clock)return null;
+  const p=S.proj.find(x=>x.relay!==S.relay);if(!p)return{none:true};
+  const back=S.proj.find(x=>x.t>p.t&&x.relay===S.relay);
+  return{t:p.t,relay:p.relay,reason:p.d.reason,until:back?back.t:null};
+}
+
+/* ============ rendering ============ */
+const MODES={auto:['Auto (price)','Price logic decides'],schedule:['Schedule','Windows ON, outside OFF'],schedule_price:['Schedule + price','Windows force ON, price logic otherwise'],manual_on:['Manual ON','Relay on regardless'],manual_off:['Manual OFF','Relay off regardless']};
+const CARS={not_detected:'not detected',asleep:'asleep',online:'online',charging:'charging'};
+function render(){renderTop();renderHero();renderChart();renderDetail();renderExplain();renderMenu();renderSys();}
+function renderTop(){
+  const m=S.cfg.mode;$('modepill').textContent=(MODES[m][0].toUpperCase())+(S.cfg.until!=null&&m.startsWith('manual')?' → '+hm(S.cfg.until):'');
+  let b='';
+  if(S.relay&&S.car.status!=='charging'&&!(S.car.status==='online'))b+=`<div class="banner"><span>⚠</span><div><b>Relay is ON but the car is not charging</b> — car ${CARS[S.car.status]}${S.car.seen!=null?` (last seen ${S.car.seen} min ago)`:''}. Check the plug / charge port. <span class="m" style="color:var(--muted)">page-only · no notification</span></div><button class="btn sm x" data-act="poll">poll car</button></div>`;
+  if(!S.clock)b+=`<div class="banner"><span>◷</span><div><b>Booting — clock not synced, no prices.</b> Relay held at the configured default (<b>${S.cfg.defRelay?'ON':'OFF'}</b>). Schedule, “until” overrides and price logic resume after NTP sync and the first ComEd fetch.</div></div>`;
+  if(S.est&&S.clock)b+=`<div class="banner info"><span>≈</span><div>5-minute feed hasn’t updated for <b>${S.age} min</b> (&gt; ${S.cfg.stale}). Current price is <b>estimated from day-ahead</b>.</div></div>`;
+  $('banner').innerHTML=b;
+}
+function renderHero(){
+  const D=S.D,c=S.car,on=S.relay;
+  const notCh=on&&c.status!=='charging';
+  const cls=on?(notCh?'warn':'on'):'off';
+  const verdict=!S.clock?'Off — waiting for clock & prices':on?(c.status==='charging'?`Charging at ${c.kw.toFixed(1)} kW`:c.status==='online'?'Relay on — probing car…':'Relay on, car not charging'):D.by==='price'?'Off — waiting for a cheaper price':D.ov?'Off — '+D.ov:'Off';
+  const by={manual:'Manual override',schedule:'Schedule',price:'Price logic',default:'Default state'}[D.by];
+  let nx='';const n=nextChange();
+  if(!S.clock)nx=`<span class="k">next ▸</span> unknown until NTP sync`;
+  else if(n.none)nx=`<span class="k">next ▸</span> no change expected before <b>Sun 07:00</b> <span class="k">(forecast)</span>`;
+  else nx=`<span class="k">next ▸</span> <b style="color:var(${n.relay?'--on':'--off'})">${n.relay?'ON':'OFF'}</b> at <b>${dt(n.t)}</b>${n.until?'–'+hm(n.until):''} <span class="k">· ${esc(n.reason)}</span> <button class="btn sm ghost" data-act="seek" data-t="${n.t}">show</button>`;
+  const P=S.D.P,st=P?P.state:S.sticky;
+  $('hero').innerHTML=`<div class="hero">
+   <div class="relay ${cls}"><div class="big">${on?'ON':'OFF'}</div><div class="sm">relay</div></div>
+   <div class="verdict">${verdict}</div>
+   <div class="why">because <b>${esc(D.reason)}</b> <span class="tag">${by}</span></div>
+   <div class="next">${nx}</div></div>
+  <div class="kpis">
+   <div class="kpi"><div class="l">price now ${S.est?'<span class="tag est">estimated (day-ahead)</span>':''}</div><div class="v">${S.clock?fp(S.nowP):'—'}<small>¢</small></div><div class="s">${S.clock?(S.est?'5-min feed '+S.age+' min old':'5-min avg · 40 min known · '+S.age+'m ago'):'no price data'}</div></div>
+   <div class="kpi"><div class="l">low by 7am</div><div class="v">${S.l7?fp(S.l7.p):'—'}<small>¢</small></div><div class="s">${S.l7?`@${dt(S.l7.t)} · min=${fp(S.mp)} (+${fp(S.cfg.minOffset)})`:'—'}</div></div>
+   <div class="kpi"><div class="l">soc · ${CARS[c.status]}</div><div class="v">${c.never?'—':Math.round(c.soc)}<small>%</small></div><div class="s">${c.never?'never seen (logic uses 0)':c.seen===0?'just now':'last seen '+(c.seen>=60?Math.floor(c.seen/60)+'h '+(c.seen%60)+'m':c.seen+' min')+' ago'} · <a href="#" data-act="poll">poll now</a></div></div>
+   <div class="kpi"><div class="l">session</div><div class="v">${c.kw.toFixed(1)}<small>kW</small></div><div class="s">${c.kwh.toFixed(1)} kWh · $${c.cost.toFixed(2)} supply</div></div>
+  </div>`;
+}
+
+/* --- timeline chart --- */
+function view(){return UI.zoom==='night'?[NOW-180,TEND]:[0,TEND]}
+function renderChart(){
+  const el=$('chart');
+  if(!S.clock){el.innerHTML=`<div class="empty"><div><b>NO CLOCK · NO PRICES</b>The timeline needs NTP time to place anything on it.<br>Nothing is persisted across reboots (by design).<br>uptime ${S.uptime}</div></div>`;$('legend').innerHTML='';return}
+  const W=Math.max(320,el.clientWidth||360),narrow=W<560;
+  const [t0,t1]=view();
+  const ml=30,mr=narrow?50:58,mt=20,ph=narrow?170:210,laneY=mt+ph+6,laneH=7,socY=laneY+laneH+6,socH=narrow?40:52,axY=socY+socH+14,H=axY+4;
+  const pw=W-ml-mr,X=t=>ml+(t-t0)/(t1-t0)*pw;
+  const P=S.D.P,Ly=UI.layers;
+  let vals=DA.concat(ACT,S.five.map(f=>f.p),[S.nowP]);if(P&&P.ok&&Ly.thr)vals.push(P.on,P.off);if(Ly.min&&S.mp!=null)vals.push(S.mp);
+  let pmin=Math.floor(Math.min(...vals))-0.5,pmax=Math.ceil(Math.max(...vals))+0.5;
+  const Y=p=>mt+(pmax-p)/(pmax-pmin)*ph;
+  const o=[];
+  o.push(`<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Price, relay and SOC timeline"><defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.4" height="6" class="hatch-l"/></pattern><clipPath id="cp"><rect x="${ml}" y="0" width="${pw}" height="${H}"/></clipPath></defs>`);
+  // grid
+  const stp=pmax-pmin>8?2:1;
+  for(let p=Math.ceil(pmin);p<=pmax;p+=stp){o.push(`<line class="${p===0?'g-zero':'g-grid'}" x1="${ml}" x2="${ml+pw}" y1="${Y(p)}" y2="${Y(p)}"/><text class="t-ax" x="${ml-5}" y="${Y(p)+3}" text-anchor="end">${p<0?'−'+(-p):p}</text>`)}
+  o.push(`<g clip-path="url(#cp)">`);
+  // past shading
+  o.push(`<rect class="r-past" x="${ml}" y="${mt}" width="${Math.max(0,X(NOW)-ml)}" height="${ph}"/>`);
+  // schedule
+  if(Ly.sched){for(let d=0;d<3;d++){const wd=WDAY[d];for(const w of S.cfg.sched[wd]||[]){const a=d*1440+w[0]-BASE,b=d*1440+w[1]-BASE;if(b<t0||a>t1)continue;o.push(`<rect class="r-sched" x="${X(a)}" y="${mt}" width="${X(b)-X(a)}" height="${ph}"/><rect class="r-schedbar" x="${X(a)}" y="${mt-8}" width="${X(b)-X(a)}" height="3" rx="1"/><text class="t-sched" x="${X(a)+3}" y="${mt+10}">SCHED ${mm(w[0])}–${mm(w[1])}</text>`)}}}
+  // relay
+  o.push(`<rect class="r-lane" x="${ml}" y="${laneY}" width="${pw}" height="${laneH}" rx="2"/>`);
+  if(Ly.relay){
+    for(const[a,b]of S.on){o.push(`<rect class="r-on" x="${X(a)}" y="${mt}" width="${X(b)-X(a)}" height="${ph}"/><rect class="r-onbar" x="${X(a)}" y="${laneY}" width="${Math.max(1,X(b)-X(a))}" height="${laneH}" rx="1"/>`)}
+    let st=null;const pr=S.proj;for(let i=0;i<=pr.length;i++){const on=i<pr.length&&pr[i].relay;const t=i<pr.length?pr[i].t-5:TEND;if(on&&st==null)st=t;if(!on&&st!=null){o.push(`<rect class="r-proj" x="${X(st)}" y="${mt}" width="${X(t)-X(st)}" height="${ph}"/><rect class="r-proj" x="${X(st)}" y="${laneY}" width="${X(t)-X(st)}" height="${laneH}"/>`);st=null}}
+  }
+  // day separators
+  for(const m of[300,1740]){if(m<t0||m>t1)continue;o.push(`<line class="g-day" x1="${X(m)}" x2="${X(m)}" y1="${mt-14}" y2="${axY-10}"/><text class="t-day" x="${X(m)+4}" y="${mt+ph-4}">${DAYN[clk(m).d].toUpperCase()}</text>`)}
+  // DA
+  const step=(arr,from,to,yf)=>{let d='';for(let h=from;h<to;h++){const v=arr[h];if(v==null)continue;const xa=X(h*60),xb=X(Math.min((h+1)*60,TEND));d+=(d?'L':'M')+xa.toFixed(1)+','+yf(v).toFixed(1)+'L'+xb.toFixed(1)+','+yf(v).toFixed(1)}return d};
+  if(Ly.da)o.push(`<path class="l-da" d="${step(DA,0,36,Y)}"/>`);
+  if(Ly.act){let d=step(ACT,0,CURH,Y);d+=`L${X(CURH*60)},${Y(S.nowP)}L${X(NOW)},${Y(S.nowP)}`;o.push(`<path class="l-act" d="${d}"/>`)}
+  if(Ly.f5)for(const f of S.five)o.push(`<circle class="d-5" cx="${X(f.t+2.5)}" cy="${Y(f.p)}" r="1.9"/>`);
+  o.push(`</g>`);
+  // thresholds
+  const LB=[],lab=(cls,y,txt)=>{LB.push({cls,y,txt});return''};
+  if(Ly.thr&&P&&P.ok){
+    const yo=Y(P.on),yf=Y(P.off);
+    o.push(`<line class="l-off" x1="${ml}" x2="${ml+pw}" y1="${yf}" y2="${yf}"/><line class="l-on" x1="${ml}" x2="${ml+pw}" y1="${yo}" y2="${yo}"/>`);
+    lab('t-off',yf,'off '+fp(P.off));lab('t-on',yo,'on '+fp(P.on));
+  }
+  if(Ly.min&&S.mp!=null){const y=Y(S.mp);o.push(`<line class="l-min" x1="${ml}" x2="${ml+pw}" y1="${y}" y2="${y}"/>`+lab('t-min',y,'min '+fp(S.mp)));
+    if(S.l7&&S.l7.t>=t0)o.push(`<circle class="d-low" cx="${X(S.l7.t+30)}" cy="${Y(S.l7.p)}" r="4.5"/>`)}
+  LB.sort((a,b)=>a.y-b.y);for(let i=1;i<LB.length;i++)if(LB[i].y-LB[i-1].y<11)LB[i].y=LB[i-1].y+11;
+  for(const l of LB)o.push(`<text class="${l.cls}" x="${ml+pw+4}" y="${l.y+3.5}">${l.txt}</text>`);
+  // SOC lane
+  o.push(`<rect class="r-lane" x="${ml}" y="${socY}" width="${pw}" height="${socH}" rx="3"/><text class="t-lane" x="${ml+3}" y="${socY+9}">SOC${Ly.kw?' · kW':''}</text><text class="t-ax" x="${ml-5}" y="${socY+8}" text-anchor="end">100</text><text class="t-ax" x="${ml-5}" y="${socY+socH}" text-anchor="end">0</text>`);
+  const SY=v=>socY+socH-(v/100)*socH;
+  if(Ly.soc){let d='',a='';for(let t=Math.max(t0,S.socK[0][0]);t<=Math.min(NOW,t1);t+=10){const v=socAt(Math.min(t,NOW));d+=(d?'L':'M')+X(t).toFixed(1)+','+SY(v).toFixed(1)}
+    const lastPast=S.socK[S.socK.length-1][0];
+    o.push(`<path class="l-soc" d="${d}"/>`);
+    let dp=`M${X(NOW)},${SY(S.car.soc)}`;for(const p of S.proj)if(p.t>=t0)dp+=`L${X(p.t).toFixed(1)},${SY(p.soc).toFixed(1)}`;o.push(`<path class="l-socp" d="${dp}"/>`);
+    if(lastPast<NOW&&S.car.status==='not_detected')o.push(`<path class="l-socp" d="M${X(lastPast)},${SY(socAt(lastPast))}L${X(NOW)},${SY(S.car.soc)}"/>`);
+    o.push(`<text class="t-ax" x="${ml+pw+4}" y="${SY(S.car.soc)+3}">${Math.round(S.car.soc)}%</text>`)}
+  if(Ly.kw){const KY=v=>socY+socH-(v/7.2)*socH*0.9;let d='';
+    for(let t=t0;t<=t1;t+=5){let kw;if(t<=NOW)kw=(relayAt(t)&&S.det.some(([a,b])=>t>=a&&t<=b)||(relayAt(t)&&t<600))&&socAt(t)<99.5?6.8:0;else{const p=S.proj.find(x=>x.t>=t);kw=p?p.kw:0}d+=(d?'L':'M')+X(t).toFixed(1)+','+KY(kw).toFixed(1)}
+    o.push(`<path class="l-kw" d="${d}"/>`)}
+  // axis
+  const tick=narrow?(t1-t0>1000?360:120):(t1-t0>1000?180:60);
+  for(let t=Math.ceil((t0+BASE)/tick)*tick-BASE;t<=t1;t+=tick)o.push(`<text class="t-ax" x="${X(t)}" y="${axY}" text-anchor="middle">${pad(clk(t).h)}</text>`);
+  // now
+  const xn=X(NOW);
+  o.push(`<line class="l-now" x1="${xn}" x2="${xn}" y1="${mt-14}" y2="${socY+socH}"/><circle class="d-now" cx="${xn}" cy="${Y(S.nowP)}" r="4.5"/><rect class="r-nowtag" x="${xn-24}" y="${mt-20}" width="48" height="13" rx="3"/><text class="t-nowtag" x="${xn}" y="${mt-10}" text-anchor="middle">NOW ${hm(NOW)}</text>`);
+  // selection
+  if(UI.sel!=null&&UI.sel!==NOW){const xs=X(UI.sel),pr=priceAt(UI.sel);const tx=Math.min(Math.max(xs,ml+26),ml+pw-26);
+    o.push(`<line class="l-sel" x1="${xs}" x2="${xs}" y1="${mt-6}" y2="${socY+socH}"/>${pr.p!=null?`<circle class="d-sel" cx="${xs}" cy="${Y(pr.p)}" r="5"/>`:''}<rect class="r-seltag" x="${tx-26}" y="${socY+socH+3}" width="52" height="13" rx="3"/><text class="t-seltag" x="${tx}" y="${socY+socH+13}" text-anchor="middle">${hm(UI.sel)}</text>`);
+    const sv=socAt(UI.sel);if(sv!=null&&Ly.soc)o.push(`<circle class="d-sel" cx="${xs}" cy="${SY(sv)}" r="3.5"/>`)}
+  o.push('</svg>');
+  el.innerHTML=o.join('');
+  el._geo={ml,pw,t0,t1};
+  // legend
+  const LG=[['act','actual / 5-min','--act'],['da','day-ahead','--da'],['thr','on / off','--on'],['min','min (low by 7am + offset)','--min'],['relay','relay ON','--on'],['sched','schedule','--sched'],['soc','SOC','--soc'],['kw','kW','--kw']];
+  $('legend').innerHTML=LG.map(([k,l,c])=>`<button class="lg ${Ly[k]?'':'off'}" data-act="layer" data-k="${k}" aria-pressed="${!!Ly[k]}"><i style="background:var(${c})"></i>${l}</button>`).join('')+'<span class="lg" style="pointer-events:none"><i style="background:url(#);background:repeating-linear-gradient(45deg,var(--on) 0 2px,transparent 2px 5px);height:8px"></i>projected</span>';
+}
+function scrubAt(clientX){
+  const el=$('chart'),g=el._geo;if(!g)return;const r=el.getBoundingClientRect();
+  let t=g.t0+(clientX-r.left-g.ml)/g.pw*(g.t1-g.t0);t=Math.round(t/5)*5;t=Math.max(g.t0,Math.min(g.t1-5,t));
+  if(Math.abs(t-NOW)<=5)t=NOW;setSel(t);
+}
+function setSel(t){UI.sel=t===NOW?null:t;renderChart();renderDetail();renderExplain()}
+
+/* --- what happened / would happen at time t --- */
+function at(t){
+  const pr=priceAt(t);
+  if(t===NOW)return{t,kind:'now',price:pr,relay:S.relay,soc:S.car.soc,D:S.D};
+  if(t>NOW){const p=S.proj.find(x=>x.t>=t)||S.proj[S.proj.length-1];return{t,kind:'proj',price:pr,relay:p.relay,soc:p.soc,D:p.d,kw:p.kw}}
+  const soc=socAt(t),rec=relayAt(t),prevRel=relayAt(t-5);
+  const D=decide(ctx(t,{price:pr.p,soc,relay:prevRel,sticky:S.sticky}));
+  return{t,kind:'past',price:pr,relay:rec,soc,D};
+}
+function blockSay(cl,i,mp){
+  const b=cl[i],srt=cl,hi=i>0?srt[i-1].soc:null,lo=b.soc;
+  const range=i===cl.length-1&&lo<=0?(hi!=null?`Below ${hi}%`:'At any SOC'):hi==null?`At ${lo}% and above`:`From ${lo}% to ${hi}%`;
+  const pv=v=>v==='min'?`<b>min</b> (${fp(mp)}¢)`:`<b>${fp(+v)}¢</b>`;
+  return `${range}: start when ≤ ${pv(b.price_on)}${b.known_minutes?` after :${pad(b.known_minutes)} of the hour`:''}, stop above ${pv(b.price_off)}.`;
+}
+function renderDetail(){
+  if(!S.clock){$('detail').innerHTML=`<div class="ph"><h2>At this moment</h2></div><div class="det"><div class="dsay">The engine can’t place this moment in time yet. Relay = <b>default ${S.cfg.defRelay?'ON':'OFF'}</b> until the clock is valid and prices are fetched. Indefinite Manual ON/OFF still works.</div><div class="row" style="margin-top:10px"><button class="btn" data-act="open" data-s="control">Manual override…</button><button class="btn" data-act="open" data-s="settings">Default state…</button></div></div>`;return}
+  const t=UI.sel??NOW,a=at(t),P=a.D.P;
+  const kindT={now:'<span class="tag ac">now</span>',proj:'<span class="tag">projected · day-ahead forecast</span>',past:'<span class="tag">recorded</span>'}[a.kind];
+  const relT=a.relay?'<span class="ok">ON</span>':'<span class="bad">OFF</span>';
+  let say='';
+  if(P&&P.ok){say=`State <b>${esc(P.state)}</b> <span class="tag">${P.how}</span> · ${blockSay(P.cl,P.bi,S.mp)}`}
+  let dec='';
+  if(a.kind==='past'){const agree=a.D.relay===a.relay;dec=`<div class="dsay">Recorded relay was ${relT}. Re-running today’s rules here says <b>${a.D.relay?'ON':'OFF'}</b> — <i>${esc(a.D.reason)}</i>${agree?'':' <span class="tag est">differs</span>'}</div>`}
+  else if(a.kind==='proj')dec=`<div class="dsay">Engine would be ${relT} — <i>${esc(a.D.reason)}</i>.</div>`;
+  else dec=`<div class="dsay">Engine says ${relT} — <i>${esc(a.D.reason)}</i>.</div>`;
+  $('detail').innerHTML=`<div class="ph"><h2>At this moment</h2><span class="sp"></span>${a.kind!=='now'?'<button class="btn sm ghost" data-act="tonow">back to now</button>':''}</div>
+  <div class="det"><div class="dh"><span class="t">${dt(t)}</span>${kindT}</div>
+  <div class="dl"><div><div class="l">price</div><div class="v">${fp(a.price.p)}¢</div><div class="s">${a.price.src}</div></div>
+  <div><div class="l">relay</div><div class="v">${relT}</div><div class="s">${a.kind==='past'?'recorded':a.kind==='proj'?'projected':'commanded'}</div></div>
+  <div><div class="l">soc</div><div class="v">${a.soc==null?'—':Math.round(a.soc)+'%'}</div><div class="s">${a.kind==='proj'?(S.car.status==='not_detected'?'car not seen':'+'+(a.kw||0)+' kW'):a.kind==='now'?CARS[S.car.status]:'logged'}</div></div></div>
+  ${dec}${say?`<div class="dsay" style="color:var(--muted)">${say}</div>`:''}</div>`;
+}
+const STEPN={manual:['Manual override','control'],schedule:['Schedule','schedule'],price:['Price logic','logic'],default:['Default state','settings']};
+const STATUS={won:'decides',pass:'falls through',idle:'inactive',skip:'not reached',blocked:'can’t decide'};
+function renderExplain(){
+  const t=UI.sel??NOW,a=S.clock?at(t):{D:S.D,kind:'now'},D=a.D;
+  const head=a.kind==='past'?'re-run with today’s rules':a.kind==='proj'?'projected':'now';
+  const li=D.steps.map((s,i)=>{const[nm,sh]=STEPN[s.k];const offv=s.s==='won'&&!D.pre;return`<li><button class="step ${s.s}${offv?' offv':''}" data-act="open" data-s="${sh}"><span class="n">${i+1}</span><span class="tt">${nm}${s.s==='won'?` → <span class="m">${D.pre?'ON':'OFF'}</span>`:''}</span><span class="st">${STATUS[s.s]}<br><span class="ed">edit ›</span></span><span class="tx">${esc(s.x)}</span></button></li>`}).join('');
+  const ov=D.ov?`<div class="ovl hit">Overlay: <b>${esc(D.ov)}</b> → forced OFF. <a href="#" data-act="open" data-s="control">SOC target…</a></div>`:`<div class="ovl">Overlays (not in Manual ON): full at 100% → OFF; SOC target <b>${S.cfg.target?S.cfg.target+'%':'none'}</b>. <a href="#" data-act="open" data-s="control">change</a></div>`;
+  $('explain').innerHTML=`<div class="ph"><h2>Why · decision chain</h2><span class="sp"></span><span class="tag">${S.clock?dt(t):'boot'} · ${head}</span></div><ol class="chain">${li}</ol>${ov}`;
+}
+function renderMenu(){
+  const it=[['control','Control',MODES[S.cfg.mode][0]],['schedule','Schedule',schedSummary()],['logic','Price logic',S.logic.state_select?'forced '+S.logic.state_select:'auto · '+S.sticky],['stats','Stats','Nov 61 kWh'],['settings','Settings','wi-fi · pushover'],['firmware','Firmware',S.fw+(S.rollback?' ⟲':'')],['log','Log',S.log.length+' events'],['device','Device',S.clock?'healthy':'booting']];
+  $('menurow').innerHTML=it.map(([k,l,s])=>`<button data-act="open" data-s="${k}">${l}<span>${esc(s)}</span></button>`).join('');
+  $('pop').innerHTML=it.map(([k,l,s])=>`<button data-act="open" data-s="${k}">${l}<span>${esc(s)}</span></button>`).join('');
+}
+function schedSummary(){const n=Object.values(S.cfg.sched).reduce((a,b)=>a+b.length,0);return n+' window'+(n===1?'':'s')}
+function renderSys(){
+  $('sys').innerHTML=`<span>clock <b class="${S.clock?'ok':'bad'}">${S.clock?'✓ NTP':'✗ not synced'}</b></span><span>wifi <b>${S.rssi} dBm</b> ${S.ip}</span><span>heap <b>${S.heap.free}k</b> min ${S.heap.min}k blk ${S.heap.blk}k</span><span>fw <b>${S.fw}</b>${S.rollback?' <b class="wn">rollback</b>':''}</span><span>up <b>${S.uptime}</b> (${S.reset})</span><span>prices <b>${S.clock?S.age+'m old':'none'}</b></span>`;
+}
+
+/* ============ sheets ============ */
+function openSheet(name,soft){
+  UI.sheet=name;$('pop').classList.remove('show');
+  const T={control:'Control · mode',schedule:'Schedule',logic:'Price logic',stats:'Stats',settings:'Settings',firmware:'Firmware / OTA',log:'Event log',device:'Device status'};
+  $('sh-t').textContent=T[name];
+  if(name==='logic'&&!soft){UI.draft=clone(S.logic);if(UI.draft.state_select==null)UI.draft.state_select='';UI.lstate=S.D.P?S.D.P.state:S.sticky;UI.lerr=null;UI.lwarn=null}
+  $('sh-b').innerHTML=SH[name]();
+  if(name==='logic')drawLC();
+  if(!soft){$('sheet').classList.add('show');$('scrim').classList.add('show');$('sheet').setAttribute('aria-hidden','false');setTimeout(()=>{const f=$('sheet').querySelector('header .ib');f&&f.focus()},50)}
+}
+function closeSheet(){UI.sheet=null;$('sheet').classList.remove('show');$('scrim').classList.remove('show');$('sheet').setAttribute('aria-hidden','true')}
+
+const SH={
+control(){
+  const m=S.cfg.mode,man=m.startsWith('manual');
+  return `<div class="modes">${Object.entries(MODES).map(([k,[l,d]])=>`<label class="mode"><input type="radio" name="mode" value="${k}" ${k===m?'checked':''}><b>${l}</b><span>${d}</span></label>`).join('')}</div>
+  <div class="card" style="margin-top:12px" id="durbox"><h3>Manual duration</h3>
+   ${S.clock?`<div class="row"><label class="sw"><input type="radio" name="dur" value="ind" ${S.cfg.until==null?'checked':''}> until I change it</label></div>
+   <div class="row" style="margin-top:6px"><label class="sw"><input type="radio" name="dur" value="for"> for</label><input type="number" id="durh" class="m" min="1" max="48" value="4" style="width:70px"> hours</div>
+   <div class="row" style="margin-top:6px"><label class="sw"><input type="radio" name="dur" value="until" ${S.cfg.until!=null?'checked':''}> until</label><input type="time" id="duru" class="m" value="${S.cfg.until!=null?hm(S.cfg.until):'06:00'}" style="width:110px"></div>
+   <div class="help" style="margin-top:6px;font-size:12px;color:var(--muted)">Reverts to Auto when reached.</div>`:`<div class="warnbox" style="margin:0">Clock not synced — only indefinite Manual ON/OFF is available. “For N hours / until” appears after NTP sync.</div>`}
+   <div class="help" style="font-size:12px;color:var(--muted);margin-top:6px">Applies only to Manual ON / OFF.</div></div>
+  <div class="card"><h3>SOC target (overlay)</h3><div class="row"><label class="sw"><input type="checkbox" id="tgon" ${S.cfg.target?'checked':''}> stop charging at</label><input type="number" id="tg" class="m" min="30" max="100" value="${S.cfg.target||80}" style="width:80px">%</div><div class="errt" id="tgerr"></div><div class="help" style="font-size:12px;color:var(--muted)">Applies in Auto/Schedule modes; ignored by Manual ON. Full (100%) always stops.</div></div>
+  <div class="foot"><button class="btn ghost" data-act="close">Cancel</button><button class="btn pri" data-act="applyCtl">Apply</button></div>`;
+},
+schedule(){
+  const m=S.cfg.mode,order=[1,2,3,4,5,6,0];
+  return `<div class="card"><h3>Outside windows</h3>
+   <label class="sw"><input type="radio" name="smode" value="schedule_price" ${m==='schedule_price'?'checked':''}> fall through to price logic <span class="tag">Schedule + price</span></label>
+   <label class="sw" style="margin-top:4px"><input type="radio" name="smode" value="schedule" ${m==='schedule'?'checked':''}> relay OFF <span class="tag">Schedule only</span></label>
+   ${m==='schedule'||m==='schedule_price'?'':`<div class="help" style="font-size:12px;color:var(--amber);margin-top:6px">Current mode is ${MODES[m][0]} — windows aren’t used. Saving with an option above switches the mode.</div>`}</div>
+   <div class="row" style="justify-content:space-between"><span class="lab">Windows (relay forced ON)</span><button class="btn sm" data-act="copyWk">copy Mon → Tue–Fri</button></div>
+   ${order.map(d=>`<div class="day"><div class="dn">${WDN[d]}</div><div><div class="dbar">${S.cfg.sched[d].map(w=>`<i style="left:${w[0]/14.4}%;width:${(w[1]-w[0])/14.4}%"></i>`).join('')}</div>
+   ${S.cfg.sched[d].map((w,i)=>`<div class="wrow"><input type="time" value="${mm(w[0])}" data-sw="${d},${i},0"><span class="m">→</span><input type="time" value="${mm(w[1])}" data-sw="${d},${i},1"><button class="x" data-act="delWin" data-d="${d}" data-i="${i}" aria-label="remove">✕</button></div>`).join('')}
+   <div class="errt" id="se${d}">${schedErr(d)}</div><button class="btn sm ghost" data-act="addWin" data-d="${d}">+ window</button></div></div>`).join('')}
+   <div class="foot"><button class="btn ghost" data-act="close">Close</button><button class="btn pri" data-act="saveSched">Save schedule</button></div>`;
+},
+logic(){
+  const d=UI.draft,names=Object.keys(d.states);if(!names.includes(UI.lstate))UI.lstate=names[0];
+  const cur=S.D.P?S.D.P.state:S.sticky,nm=UI.lstate,st=d.states[nm];
+  let h=`<div class="seg" style="margin-bottom:10px"><button data-act="ltab" data-v="vis" class="${UI.ltab==='vis'?'a':''}">visual</button><button data-act="ltab" data-v="json" class="${UI.ltab==='json'?'a':''}">raw JSON</button></div>`;
+  if(UI.lerr)h+=`<div class="errbox">${UI.lerr}</div>`;
+  if(UI.lwarn)h+=`<div class="warnbox">${UI.lwarn}<div class="row" style="margin-top:6px"><button class="btn sm" data-act="saveLogic" data-force="1">Save anyway</button></div></div>`;
+  if(UI.ltab==='json'){return h+`<textarea class="json" id="lj" spellcheck="false">${esc(JSON.stringify(Object.assign({},d.state_select?{state_select:d.state_select}:{},{states:d.states}),null,2))}</textarea>
+   <div class="row" style="margin-top:8px"><button class="btn" data-act="ljApply">Apply to editor</button><button class="btn" data-act="ljCopy">Copy</button><button class="btn" data-act="ljDown">Export file</button><label class="btn">Import file<input type="file" accept=".json,application/json" id="ljf" hidden></label></div>
+   <div class="help" style="font-size:12px;color:var(--muted);margin-top:6px">Paste an existing <code>logic.json</code> (UTF-8 state names are kept). Applying replaces the editor contents; press Save to send it to the device.</div>
+   <div class="foot"><button class="btn ghost" data-act="close">Cancel</button><button class="btn pri" data-act="saveLogic">Save</button></div>`}
+  h+=`<div class="card"><h3>Which state is used</h3><div class="row"><select id="ssel" class="m" style="flex:1"><option value="">Auto — by entry conditions (sticky)</option>${names.map(n=>`<option value="${esc(n)}" ${d.state_select===n?'selected':''}>Force: ${esc(n)}</option>`).join('')}</select></div>
+   <div style="font-size:12.5px;margin-top:6px">Right now: <b>${esc(cur)}</b> ${S.D.P?`<span class="tag">${S.D.P.how}</span>`:''} · SOC ${Math.round(S.car.soc)}% · price ${S.clock?fp(S.nowP)+'¢':'—'}</div>
+   <div class="row" style="margin-top:8px"><label class="lab" style="flex:1">min offset (¢) <span style="text-transform:none">— “min” = lowest by 7am ${S.l7?fp(S.l7.p):'—'} + offset</span></label><input type="number" step="0.1" id="moff" class="m" value="${S.cfg.minOffset}" style="width:80px"></div></div>
+  <div class="stabs">${names.map(n=>`<button class="stab ${n===nm?'a':''}" data-act="lstate" data-n="${esc(n)}">${esc(n)}${n===cur?'<small>● active</small>':''}${d.state_select===n?'<small>forced</small>':''}</button>`).join('')}<button class="stab" data-act="addState">+ state</button></div>
+  <div id="lc"></div>
+  <div class="row" style="margin:6px 0 10px;font:10.5px var(--mono);color:var(--muted);gap:10px"><span><i style="display:inline-block;width:10px;height:10px;background:var(--on-a);border:1px solid var(--on)"></i> starts</span><span><i style="display:inline-block;width:10px;height:10px;background:var(--amber-a);border:1px solid var(--amber)"></i> keeps if already on</span><span><i style="display:inline-block;width:10px;height:10px;background:var(--off-a);border:1px solid var(--off)"></i> stops</span><span style="color:var(--sched)">▌auto-enter range</span></div>
+  <div class="card"><h3>State</h3><div class="row"><input type="text" id="sname" value="${esc(nm)}" style="flex:1"><button class="btn sm danger" data-act="delState">delete</button></div><div class="errt" id="snerr"></div>
+   <div class="lab" style="margin:10px 0 4px">Auto-enter when (all must hold)</div>
+   ${(st.entry_conditions||[]).map((c,i)=>`<div class="cgrid"><span class="m">SOC</span><select class="m" data-c="${i}" data-k="operator">${['>','>=','<','<='].map(o=>`<option ${c.operator===o?'selected':''}>${o}</option>`).join('')}</select><input type="number" class="m" data-c="${i}" data-k="value" value="${c.value}" min="0" max="100"><button class="x" data-act="delCond" data-i="${i}">✕</button></div>`).join('')||'<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">No conditions — <b>never auto-entered</b>; only used when forced above.</div>'}
+   <button class="btn sm ghost" data-act="addCond">+ condition</button>
+   <div style="font-size:12px;color:var(--muted);margin-top:6px">${condSay(st.entry_conditions||[])} States are checked in order; the first match wins, otherwise the current state is kept (sticky).</div></div>
+  <div class="lab" style="margin:4px 0 6px">Charging blocks · first block with SOC ≥ its value applies</div>
+  ${(st.charging_logic||[]).map((b,i)=>blkHtml(st,b,i,nm===cur&&S.D.P&&S.D.P.bi===i)).join('')}
+  <button class="btn sm ghost" data-act="addBlk">+ block</button>
+  <div class="foot"><button class="btn ghost" data-act="close">Cancel</button><button class="btn pri" data-act="saveLogic">Save rules</button></div>`;
+  return h;
+},
+stats(){
+  const days=[...Array(14).keys()].map(i=>{const k=[0,12.4,0,18.2,9.1,0,0,21.5,6.3,0,14.8,0,11.2,30.2][i];return{d:25+i>31?'Nov '+(25+i-31):'Oct '+(25+i),k,c:k*[1.4,1.6,1.2,1.1,1.8,1.5,1.3,0.9,2.1,1.7,1.2,1.4,1.0,1.3][i]/100}});
+  const max=Math.max(...days.map(d=>d.k)),bw=100/14;
+  return `<div class="card"><h3>Daily energy · last 14 days</h3><svg viewBox="0 0 100 44" style="width:100%;height:150px" preserveAspectRatio="none">${days.map((d,i)=>`<rect x="${i*bw+0.8}" y="${40-d.k/max*38}" width="${bw-1.6}" height="${Math.max(.3,d.k/max*38)}" fill="var(--act)" opacity="${i===13?1:.6}"><title>${d.d}: ${d.k} kWh · $${d.c.toFixed(2)}</title></rect>`).join('')}</svg>
+   <div class="row" style="justify-content:space-between;font:10px var(--mono);color:var(--muted)"><span>${days[0].d}</span><span>${days[13].d} (today)</span></div>
+   <div class="row" style="margin-top:6px;font:12px var(--mono)"><span>Σ ${days.reduce((a,d)=>a+d.k,0).toFixed(1)} kWh</span><span>$${days.reduce((a,d)=>a+d.c,0).toFixed(2)} supply</span><span>avg ${(days.reduce((a,d)=>a+d.c,0)/days.reduce((a,d)=>a+d.k,0)*100).toFixed(2)}¢/kWh</span></div></div>
+  <div class="card"><h3>Monthly</h3><table><tr><th>month</th><th class="r">kWh</th><th class="r">cost</th><th class="r">¢/kWh</th></tr>${[['Aug',182,3.10],['Sep',205,3.64],['Oct',231,4.02],['Nov*',61,0.88]].map(r=>`<tr><td>${r[0]}</td><td class="r">${r[1]}</td><td class="r">$${r[2].toFixed(2)}</td><td class="r">${(r[2]/r[1]*100).toFixed(2)}</td></tr>`).join('')}</table><div class="help" style="font-size:11px;color:var(--muted);margin-top:4px">Supply only (no delivery fees). *month to date.</div></div>
+  <div class="card"><h3>Sessions</h3><div style="overflow-x:auto"><table><tr><th>start</th><th class="r">dur</th><th class="r">kWh</th><th class="r">$</th><th class="r">SOC</th></tr>
+   ${(S.scn===1?[['Sat 22:15','0:25',2.8,.04,'50→52*']]:S.scn===5?[['Sat 21:05','1:35',10.8,.27,'42→58*']]:[]).concat([['Sat 00:20','4:30',30.2,.39,'41→85'],['Thu 01:20','1:45',11.2,.11,'62→79'],['Tue 02:05','2:10',14.8,.18,'55→77'],['Sun 00:40','3:10',21.5,.19,'40→73'],['Fri 23:30','1:00',6.3,.13,'71→81']]).map(r=>`<tr><td>${r[0]}</td><td class="r">${r[1]}</td><td class="r">${r[2]}</td><td class="r">${r[3].toFixed(2)}</td><td class="r">${r[4]}</td></tr>`).join('')}</table></div><div class="help" style="font-size:11px;color:var(--muted)">*in progress</div></div>
+  <div class="help" style="font-size:12px;color:var(--muted)">Today’s price / relay / SOC / kW overlay is the timeline on the main page (toggle kW in its legend).</div>`;
+},
+settings(){
+  const c=S.cfg;const nets=[['syrota-iot',-61],['syrota-guest',-64],['NETGEAR42',-79],['xfinitywifi',-83]];
+  return `<div class="card"><h3>Wi-Fi</h3><div style="font:12px var(--mono);margin-bottom:6px">connected <b>${esc(c.wifi.ssid)}</b> · ${S.rssi} dBm · ${S.ip}</div>
+   <div class="row" style="justify-content:space-between"><span class="lab">networks</span><button class="btn sm" data-act="rescan">rescan</button></div>
+   <div class="wl" id="wl">${nets.map(n=>`<button data-act="pickNet" data-n="${n[0]}" class="${n[0]===c.wifi.ssid?'a':''}"><span>${n[0]}</span><span>${n[1]} dBm</span></button>`).join('')}</div>
+   <div class="f"><label>password for <span id="wsel">${esc(c.wifi.ssid)}</span></label><input type="password" id="wpw" placeholder="unchanged"></div>
+   <div class="help" style="font-size:12px;color:var(--muted)">Hotspot <span class="m">ChargerControl-7A3F</span> only starts if there are no credentials or the station link is down for 5 min.</div></div>
+  <div class="card"><h3>Pushover</h3><label class="sw"><input type="checkbox" id="poen" ${c.po.enabled?'checked':''}> enabled</label>
+   <div class="f" style="margin-top:6px"><label>app token</label><input type="text" class="m" id="potk" value="${c.po.token}"></div>
+   <div class="f"><label>user key</label><input type="text" class="m" id="pous" value="${c.po.user}"></div>
+   <div class="f"><label>device (optional)</label><input type="text" class="m" id="podv" value="${c.po.device}" placeholder="all devices"></div>
+   <button class="btn sm" data-act="poTest">Send test</button><div class="help" style="font-size:12px;color:var(--muted);margin-top:4px">Sent only on relay transitions — never repeated.</div></div>
+  <div class="card"><h3>Car / OBD</h3>
+   ${fld('mac','dongle MAC',c.mac,'text','AA:BB:CC:DD:EE:FF')}
+   <div class="row">${fld('pollOn','poll when ON (s)',c.pollOn,'number')}${fld('pollOff','poll when OFF (min)',c.pollOff,'number')}</div>
+   <div class="row">${fld('thrW','charging ≥ (W)',c.thrW,'number')}<div class="f" style="flex:1"><label>power sign</label><select id="sign" class="m"><option value="abs" ${c.sign==='abs'?'selected':''}>|power| (unverified)</option><option value="+1" ${c.sign==='+1'?'selected':''}>+1</option><option value="-1" ${c.sign==='-1'?'selected':''}>−1</option></select></div></div>
+   ${fld('probe','ON-probe delay (s)',c.probe,'number')}</div>
+  <div class="card"><h3>Relay & safety</h3>
+   <div class="row"><div class="f" style="flex:1"><label>relay polarity</label><select id="polarity" class="m"><option value="high" ${c.polarity==='high'?'selected':''}>active HIGH</option><option value="low" ${c.polarity==='low'?'selected':''}>active LOW</option></select></div>
+   <div class="f" style="flex:1" id="defbox"><label>default relay state</label><select id="defRelay" class="m"><option value="0" ${!c.defRelay?'selected':''}>OFF (factory)</option><option value="1" ${c.defRelay?'selected':''}>ON</option></select></div></div>
+   <div class="help" style="font-size:12px;color:var(--muted);margin:-6px 0 8px">Default is used whenever nothing can decide: boot, no clock, no prices.</div>
+   <div class="row">${fld('stale','price stale after (min)',c.stale,'number')}${fld('fullHold','full hold (min)',c.fullHold,'number')}</div></div>
+  <div class="foot"><button class="btn ghost" data-act="close">Close</button><button class="btn pri" data-act="saveSet">Save settings</button></div>`;
+},
+firmware(){
+  return `<div class="card"><h3>Running</h3><div style="font:600 20px var(--mono)">v${S.fw}</div>
+   ${S.rollback?'<div class="warnbox" style="margin-top:6px">⟲ <b>Running from rollback.</b> The previous update (1.3.2) failed its health check and the bootloader reverted to 1.3.1.</div>':'<div style="font:12px var(--mono);color:var(--muted)">image marked valid · partition app0</div>'}</div>
+   <div class="f"><label>manifest URL</label><input type="text" class="m" id="otau" value="${esc(S.cfg.ota)}"><div class="errt" id="otaerr"></div><div class="help">HTTPS only. A direct <span class="m">.bin</span> URL works too (no sha256 check).</div></div>
+   <div class="row"><button class="btn" data-act="otaCheck">Check</button><button class="btn" data-act="reboot">Reboot</button></div>
+   <div id="otares" style="margin-top:12px"></div>`;
+},
+log(){
+  const f=UI.logF,L=S.log.filter(e=>f==='all'||e.k===f);
+  return `<div class="seg" style="margin-bottom:10px">${[['all','all'],['tr','transitions'],['po','pushover'],['er','errors'],['sys','system']].map(([k,l])=>`<button data-act="logf" data-v="${k}" class="${f===k?'a':''}">${l}</button>`).join('')}</div>
+  <ul class="log">${L.map(e=>`<li><time>${e.t}</time><span><span class="k ${e.k}">${{tr:'RELAY',po:'PUSH',er:'ERR',sys:'SYS'}[e.k]}</span>${esc(e.m)}</span></li>`).join('')||'<li><span></span><span>nothing</span></li>'}</ul>
+  <div class="help" style="font-size:11px;color:var(--muted);margin-top:8px">Times before NTP sync are shown as uptime (+hh:mm:ss).</div>`;
+},
+device(){
+  const r=[['Clock',S.clock?'<span class="ok">valid · NTP · America/Chicago</span>':'<span class="bad">not synced</span>'],['Wi-Fi',`${esc(S.cfg.wifi.ssid)} · ${S.rssi} dBm · ${S.ip}`],['Heap free',S.heap.free+' KB'],['Heap min',S.heap.min+' KB'],['Largest block',S.heap.blk+' KB'],['Firmware',S.fw+(S.rollback?' <span class="wn">(rollback)</span>':'')],['Uptime',S.uptime],['Reset reason',S.reset],['Price data',S.clock?S.age+' min old'+(S.est?' · <span class="wn">estimated</span>':''):'none'],['Car',CARS[S.car.status]+(S.car.seen!=null?' · seen '+S.car.seen+'m ago':'')],['Sticky state',esc(S.sticky)]];
+  return `<table>${r.map(x=>`<tr><td style="color:var(--muted)">${x[0]}</td><td class="r" style="white-space:normal">${x[1]}</td></tr>`).join('')}</table><div class="row" style="margin-top:12px"><button class="btn" data-act="poll">Poll car now</button><button class="btn" data-act="reboot">Reboot</button></div>`;
+}};
+const fld=(id,l,v,type,ph)=>`<div class="f" style="flex:1"><label for="${id}">${l}</label><input id="${id}" type="${type}" class="m" value="${esc(v)}" ${ph?`placeholder="${ph}"`:''}><div class="errt" id="${id}-e"></div></div>`;
+function schedErr(d){const w=S.cfg.sched[d].slice().sort((a,b)=>a[0]-b[0]);for(let i=0;i<w.length;i++){if(w[i][1]<=w[i][0])return'end must be after start (split windows that cross midnight)';if(i&&w[i][0]<w[i-1][1])return'windows overlap'}return''}
+function condSay(cs){if(!cs.length)return'';const I=interval(cs);return`→ auto-enters when SOC is ${rangeSay(I)}.`}
+function interval(cs){let lo=-Infinity,loI=true,hi=Infinity,hiI=true;for(const c of cs){const v=+c.value,o=c.operator;if(o[0]==='>'){if(v>lo||(v===lo&&o==='>')){lo=v;loI=o==='>='}}else{if(v<hi||(v===hi&&o==='<')){hi=v;hiI=o==='<='}}}return{lo,loI,hi,hiI}}
+function rangeSay(I){const a=I.lo===-Infinity?'':`${I.loI?'≥':'>'} ${I.lo}%`,b=I.hi===Infinity?'':`${I.hiI?'≤':'<'} ${I.hi}%`;return[a,b].filter(Boolean).join(' and ')||'any value'}
+function overlap(a,b){const lo=Math.max(a.lo,b.lo),hi=Math.min(a.hi,b.hi);if(lo<hi)return true;if(lo>hi)return false;const li=(a.lo===lo?a.loI:true)&&(b.lo===lo?b.loI:true),hj=(a.hi===hi?a.hiI:true)&&(b.hi===hi?b.hiI:true);return li&&hj}
+function blkHtml(st,b,i,act){
+  const sorted=st.charging_logic;const ok=v=>v==='min'||(v!==''&&!isNaN(+v));
+  const errs=[];if(b.soc===''||isNaN(+b.soc)||+b.soc<0||+b.soc>100)errs.push('SOC 0–100');if(!ok(b.price_on))errs.push('start: number or “min”');if(!ok(b.price_off))errs.push('stop: number or “min”');
+  if(b.known_minutes!==''&&b.known_minutes!=null&&(isNaN(+b.known_minutes)||+b.known_minutes<0||+b.known_minutes>59))errs.push('wait 0–59');
+  if(ok(b.price_on)&&ok(b.price_off)&&rp(b.price_on,S.mp||0)>rp(b.price_off,S.mp||0))errs.push('start > stop — relay would flap');
+  return `<div class="blk ${act?'act':''}"><div class="say">${act?'<span class="tag ac">active now</span> ':''}${ok(b.price_on)&&ok(b.price_off)?blockSay(sorted,i,S.mp):'—'}</div>
+  <div class="bgrid"><label>SOC ≥ %<input type="number" data-b="${i}" data-k="soc" value="${b.soc}" min="0" max="100"></label>
+  <label>start ≤ ¢<input type="text" inputmode="decimal" data-b="${i}" data-k="price_on" value="${b.price_on}" list="minlist"></label>
+  <label>stop &gt; ¢<input type="text" inputmode="decimal" data-b="${i}" data-k="price_off" value="${b.price_off}" list="minlist"></label>
+  <label>wait :mm<input type="number" data-b="${i}" data-k="known_minutes" value="${b.known_minutes??''}" min="0" max="59" placeholder="—"></label>
+  <button class="x" data-act="delBlk" data-i="${i}" aria-label="delete block">✕</button></div>
+  ${errs.length?`<div class="errt">${errs.join(' · ')}</div>`:''}<datalist id="minlist"><option value="min"></datalist></div>`;
+}
+/* SOC × price chart for one state */
+function drawLC(){
+  const el=$('lc');if(!el)return;const d=UI.draft,nm=UI.lstate,st=d.states[nm];if(!st)return;
+  const cl=(st.charging_logic||[]).filter(b=>!isNaN(+b.soc)).slice().sort((a,b)=>b.soc-a.soc),mp=S.mp??0;
+  const W=Math.max(300,el.clientWidth||440),H=230,ml=32,mr=10,mt=8,mb=24,pw=W-ml-mr,ph=H-mt-mb;
+  const xs=[-1,4];cl.forEach(b=>{const a=rp(b.price_on,mp),c=rp(b.price_off,mp);if(!isNaN(a))xs.push(a);if(!isNaN(c))xs.push(c)});if(S.nowP!=null)xs.push(S.nowP);xs.push(mp);
+  const x0=Math.floor(Math.min(...xs))-1,x1=Math.ceil(Math.max(...xs))+1,X=v=>ml+(Math.max(x0,Math.min(x1,v))-x0)/(x1-x0)*pw,Y=s=>mt+(100-s)/100*ph;
+  const o=[`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="SOC versus price map for ${esc(nm)}"><defs><pattern id="hatch2" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="6" fill="var(--off)" opacity=".5"/></pattern></defs>`];
+  const cur=S.D.P&&S.D.P.state===nm;
+  cl.forEach((b,k)=>{const hi=k===0?100:cl[k-1].soc,lo=k===cl.length-1?0:+b.soc;if(hi<=lo)return;const on=rp(b.price_on,mp),off=rp(b.price_off,mp);if(isNaN(on)||isNaN(off))return;
+    const y=Y(hi),h=Y(lo)-Y(hi),xa=X(Math.min(on,off)),xb=X(Math.max(on,off));
+    o.push(`<rect class="lc-reg-on" x="${ml}" y="${y}" width="${X(on)-ml}" height="${h}"/>`);
+    if(on<=off)o.push(`<rect class="lc-reg-hold" x="${xa}" y="${y}" width="${xb-xa}" height="${h}"/>`);else o.push(`<rect class="lc-reg-bad" x="${xa}" y="${y}" width="${xb-xa}" height="${h}"/>`);
+    o.push(`<rect class="lc-reg-off" x="${X(Math.max(on,off))}" y="${y}" width="${ml+pw-X(Math.max(on,off))}" height="${h}"/>`);
+    o.push(`<rect class="lc-b" x="${ml}" y="${y}" width="${pw}" height="${h}"/>`);
+    o.push(`<line x1="${X(on)}" x2="${X(on)}" y1="${y}" y2="${y+h}" stroke="var(--on)" stroke-width="1.5"/><line x1="${X(off)}" x2="${X(off)}" y1="${y}" y2="${y+h}" stroke="var(--off)" stroke-width="1.5"/>`);
+    if(h>14)o.push(`<text class="t-band" x="${ml+4}" y="${y+12}">${lo>0?'≥'+b.soc+'%':'<'+(k>0?cl[k-1].soc:100)+'%'}${b.known_minutes?' · :'+pad(b.known_minutes):''}</text><text class="t-on" x="${X(on)-3}" y="${y+h-4}" text-anchor="end">${b.price_on==='min'?'min':fp(on)}</text><text class="t-off" x="${X(off)+3}" y="${y+h-4}">${b.price_off==='min'?'min':fp(off)}</text>`);
+  });
+  // entry range strip
+  const ec=st.entry_conditions||[];if(ec.length){const I=interval(ec),lo=Math.max(0,I.lo),hi=Math.min(100,I.hi);if(hi>=lo)o.push(`<rect class="lc-ent" x="${ml-6}" y="${Y(hi)}" width="4" height="${Math.max(2,Y(lo)-Y(hi))}" rx="1"><title>auto-enter ${rangeSay(I)}</title></rect>`)}
+  for(let s=0;s<=100;s+=20)o.push(`<text class="t-ax" x="${ml-9}" y="${Y(s)+3}" text-anchor="end">${s}</text>`);
+  const stp=x1-x0>10?2:1;for(let p=x0;p<=x1;p+=stp)o.push(`<text class="t-ax" x="${X(p)}" y="${H-8}" text-anchor="middle">${p<0?'−'+(-p):p}</text>`);
+  o.push(`<text class="t-ax" x="${ml+pw}" y="${H-0}" text-anchor="end">price ¢ →</text>`);
+  if(S.mp!=null)o.push(`<line class="l-min" x1="${X(mp)}" x2="${X(mp)}" y1="${mt}" y2="${mt+ph}"/><text class="t-min" x="${X(mp)+3}" y="${mt+10}">min</text>`);
+  if(S.nowP!=null){const cx=X(S.nowP),cy=Y(S.car.soc);o.push(cur?`<circle class="d-you" cx="${cx}" cy="${cy}" r="6"/><text class="t-band" x="${cx+(cx>W-110?-9:9)}" y="${cy-8}" text-anchor="${cx>W-110?'end':'start'}">you · ${fp(S.nowP)}¢ · ${Math.round(S.car.soc)}%</text>`:`<circle class="d-you2" cx="${cx}" cy="${cy}" r="6"/><text class="t-ax" x="${cx+9}" y="${cy-8}">if in this state</text>`)}
+  o.push('</svg>');el.innerHTML=o.join('');
+}
+
+/* ============ events ============ */
+let toastT;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),3200)}
+document.addEventListener('click',e=>{
+  const a=e.target.closest('[data-act]');if(!a)return;const act=a.dataset.act;
+  if(a.tagName==='A')e.preventDefault();
+  const H=ACT_H[act];if(H)H(a,e);
+});
+const ACT_H={
+  open:a=>openSheet(a.dataset.s),close:()=>closeSheet(),
+  pop:()=>$('pop').classList.toggle('show'),
+  theme:()=>{UI.theme=(UI.theme+1)%3;const v=['','dark','light'][UI.theme];if(v)document.documentElement.dataset.theme=v;else delete document.documentElement.dataset.theme;toast('Theme: '+(v||'auto (system)'));render()},
+  demo:()=>$('demo').classList.toggle('open'),
+  scn:a=>{load(+a.dataset.n);$('demo').classList.remove('open');renderDemo();render();if(UI.sheet)openSheet(UI.sheet);toast('Scenario '+a.dataset.n+': '+SCEN[a.dataset.n].name)},
+  zoom:a=>{UI.zoom=a.dataset.z;document.querySelectorAll('#zoom button').forEach(b=>b.classList.toggle('a',b===a));renderChart()},
+  tonow:()=>setSel(NOW),seek:a=>setSel(+a.dataset.t),
+  layer:a=>{UI.layers[a.dataset.k]^=1;renderChart()},
+  poll:a=>{const c=S.car;toast('Polling car over BLE…');setTimeout(()=>{if(c.status==='not_detected'){S.log.unshift({t:S.clock?dt(NOW):'+00:00:50',k:'er',m:'Car poll: BLE connect timed out (not detected)'});toast('Car not detected — BLE connect timed out')}else{c.seen=0;if(c.status==='asleep'){S.log.unshift({t:dt(NOW),k:'sys',m:'Car poll: asleep (228334 → ERROR)'});toast(`Car asleep · SOC ${Math.round(c.soc)}% (last known)`)}else toast(`Car ${CARS[c.status]} · SOC ${Math.round(c.soc)}% · ${c.kw.toFixed(1)} kW`)}render()},1200)},
+  applyCtl:()=>{
+    const m=(document.querySelector('input[name=mode]:checked')||{}).value;const tgon=$('tgon').checked,tg=+$('tg').value;
+    if(tgon&&(isNaN(tg)||tg<30||tg>100)){$('tgerr').textContent='target must be 30–100';$('tg').classList.add('err');return}
+    let until=null;if(m.startsWith('manual')&&S.clock){const dr=(document.querySelector('input[name=dur]:checked')||{}).value;
+      if(dr==='for'){const h=+$('durh').value;if(!(h>=1&&h<=48)){toast('Hours must be 1–48');return}until=NOW+h*60}
+      if(dr==='until'){const[v1,v2]=$('duru').value.split(':').map(Number);let u=(clk(NOW).d*1440+v1*60+v2)-BASE;if(u<=NOW)u+=1440;until=u}}
+    S.cfg.mode=m;S.cfg.until=until;S.cfg.target=tgon?tg:null;
+    compute(true,m.startsWith('manual')?'Manual':'Mode');closeSheet();render();toast(`Mode: ${MODES[m][0]}${until!=null?' until '+dt(until):''} → relay ${S.relay?'ON':'OFF'}`);
+  },
+  addWin:a=>{S.cfg.sched[a.dataset.d].push([60,300]);openSheet('schedule',true)},
+  delWin:a=>{S.cfg.sched[a.dataset.d].splice(+a.dataset.i,1);openSheet('schedule',true)},
+  copyWk:()=>{for(const d of[2,3,4,5])S.cfg.sched[d]=clone(S.cfg.sched[1]);openSheet('schedule',true);toast('Copied Monday to Tue–Fri')},
+  saveSched:()=>{for(let d=0;d<7;d++)if(schedErr(d)){toast('Fix the highlighted day first');return}
+    const sm=document.querySelector('input[name=smode]:checked');const prevMode=S.cfg.mode;if(sm)S.cfg.mode=sm.value;if(!S.cfg.mode.startsWith('manual'))S.cfg.until=null;
+    compute(true,'Schedule');closeSheet();render();toast('Schedule saved'+(prevMode!==S.cfg.mode?' · mode '+MODES[S.cfg.mode][0]:''))},
+  ltab:a=>{if(UI.ltab==='json'&&a.dataset.v==='vis'){/* keep draft */}UI.ltab=a.dataset.v;openSheet('logic',true)},
+  lstate:a=>{UI.lstate=a.dataset.n;openSheet('logic',true)},
+  addState:()=>{let n='Новое',i=2;while(UI.draft.states[n])n='Новое '+i++;UI.draft.states[n]={entry_conditions:[],charging_logic:[{soc:0,price_on:2,price_off:3}]};UI.lstate=n;openSheet('logic',true)},
+  delState:()=>{const n=UI.lstate;if(Object.keys(UI.draft.states).length<2){toast('Keep at least one state');return}if(!confirm(`Delete state “${n}”?`))return;delete UI.draft.states[n];if(UI.draft.state_select===n)UI.draft.state_select='';UI.lstate=null;openSheet('logic',true)},
+  addCond:()=>{const s=UI.draft.states[UI.lstate];(s.entry_conditions=s.entry_conditions||[]).push({type:'soc',operator:'>=',value:50});openSheet('logic',true)},
+  delCond:a=>{UI.draft.states[UI.lstate].entry_conditions.splice(+a.dataset.i,1);openSheet('logic',true)},
+  addBlk:()=>{const s=UI.draft.states[UI.lstate];(s.charging_logic=s.charging_logic||[]).push({soc:50,price_on:0,price_off:0.5});openSheet('logic',true)},
+  delBlk:a=>{UI.draft.states[UI.lstate].charging_logic.splice(+a.dataset.i,1);openSheet('logic',true)},
+  saveLogic:a=>saveLogic(a.dataset.force==='1'),
+  ljApply:()=>{try{const j=JSON.parse($('lj').value);const e=shapeErr(j);if(e)throw new Error(e);UI.draft={state_select:j.state_select||'',states:j.states};UI.lerr=null;UI.ltab='vis';UI.lstate=null;openSheet('logic',true);toast('JSON loaded into editor — review, then Save')}catch(err){UI.lerr='Invalid JSON: '+esc(err.message);openSheet('logic',true)}},
+  ljCopy:()=>{const v=$('lj').value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>toast('Copied'),()=>{$('lj').select();document.execCommand&&document.execCommand('copy');toast('Copied')})},
+  ljDown:()=>{const b=new Blob([$('lj').value],{type:'application/json;charset=utf-8'});const u=URL.createObjectURL(b),l=document.createElement('a');l.href=u;l.download='logic.json';l.click();setTimeout(()=>URL.revokeObjectURL(u),500)},
+  rescan:()=>{$('wl').innerHTML='<div class="m" style="padding:8px;color:var(--muted)"><span class="spin"></span> scanning…</div>';setTimeout(()=>openSheet('settings',true),1100)},
+  pickNet:a=>{document.querySelectorAll('#wl button').forEach(b=>b.classList.toggle('a',b===a));$('wsel').textContent=a.dataset.n;UI.pickNet=a.dataset.n},
+  poTest:()=>{if(!$('potk').value.trim()||!$('pous').value.trim()){toast('Token and user are required');return}toast('Sending test…');setTimeout(()=>{S.log.unshift({t:S.clock?dt(NOW):'+00:01:02',k:'po',m:'Pushover test sent'});toast('✓ Pushover test delivered')},900)},
+  saveSet:()=>saveSettings(),
+  otaCheck:()=>{const u=$('otau').value.trim();const err=!/^https:\/\//i.test(u)?(u.startsWith('http://')?'http:// is not allowed — OTA must use https://':'URL must start with https://'):'';$('otaerr').textContent=err;$('otau').classList.toggle('err',!!err);if(err)return;S.cfg.ota=u;
+    $('otares').innerHTML='<div class="m" style="color:var(--muted)"><span class="spin"></span> fetching manifest…</div>';
+    setTimeout(()=>{const bin=/\.bin$/i.test(u);$('otares').innerHTML=`<div class="card"><h3>Available</h3><div style="font:600 18px var(--mono)">v1.4.0 <span class="tag on">newer</span></div><div style="font-size:12.5px;margin:6px 0">• Schedule + price mode<br>• Overlap warning for entry conditions<br>• BLE reconnect backoff</div><div class="m" style="font-size:11px;color:var(--muted)">1,284,112 bytes · ${bin?'<span class="wn">direct .bin — no sha256 check</span>':'sha256 9f2c…e41a'}</div><div class="bar" style="margin:10px 0 6px"><i id="otab"></i></div><div class="row"><button class="btn pri" data-act="otaInstall">Install</button><span class="m" id="otap" style="font-size:12px;color:var(--muted)"></span></div></div>`},900)},
+  otaInstall:a=>{a.disabled=true;let p=0;const iv=setInterval(()=>{p=Math.min(100,p+Math.random()*9+3);$('otab').style.width=p+'%';$('otap').textContent=p<100?`writing app1… ${Math.floor(p)}%`:'verified sha256 ✓ — boot partition set';if(p>=100){clearInterval(iv);a.outerHTML='<button class="btn pri" data-act="reboot">Reboot now</button>';S.log.unshift({t:dt(NOW),k:'sys',m:'OTA 1.4.0 written & verified, pending reboot'})}},180)},
+  reboot:()=>{if(!confirm('Reboot the controller? Relay goes to the default state until it decides again.'))return;closeSheet();toast('Rebooting…');setTimeout(()=>{load(4);renderDemo();render();toast('Rebooted — waiting for NTP')},1200)},
+  logf:a=>{UI.logF=a.dataset.v;openSheet('log',true)}
+};
+function shapeErr(j){if(!j||typeof j!=='object'||!j.states||typeof j.states!=='object')return'missing "states" object';for(const[n,s]of Object.entries(j.states)){if(!Array.isArray(s.entry_conditions||[]))return`${n}: entry_conditions must be an array`;if(s.charging_logic&&!Array.isArray(s.charging_logic))return`${n}: charging_logic must be an array`}if(j.state_select&&!j.states[j.state_select])return`state_select “${j.state_select}” is not a state`;return''}
+function saveLogic(force){
+  const d=UI.draft,errs=[],warns=[];
+  if(UI.ltab==='json'){try{const j=JSON.parse($('lj').value);const e=shapeErr(j);if(e)throw new Error(e);UI.draft={state_select:j.state_select||'',states:j.states}}catch(err){UI.lerr='Invalid JSON: '+esc(err.message);openSheet('logic',true);return}return saveLogic(force)}
+  const ok=v=>v==='min'||(v!==''&&v!=null&&!isNaN(+v));
+  for(const[n,s]of Object.entries(d.states)){
+    if(!n.trim())errs.push('A state has an empty name');
+    for(const c of s.entry_conditions||[])if(c.value===''||isNaN(+c.value)||+c.value<0||+c.value>100)errs.push(`${n}: condition value must be 0–100`);
+    if(!(s.charging_logic||[]).length&&!(d.states.default&&d.states.default.charging_logic))errs.push(`${n}: needs at least one charging block`);
+    for(const b of s.charging_logic||[]){if(isNaN(+b.soc)||b.soc===''||+b.soc<0||+b.soc>100||!ok(b.price_on)||!ok(b.price_off)||(b.known_minutes!==''&&b.known_minutes!=null&&!(+b.known_minutes>=0&&+b.known_minutes<=59)))errs.push(`${n}: fix block values`);else if(rp(b.price_on,0)>rp(b.price_off,0)&&b.price_on!=='min'&&b.price_off!=='min')warns.push(`${esc(n)} ≥${b.soc}%: start ${b.price_on}¢ is above stop ${b.price_off}¢ — the relay will flap`)}
+  }
+  const ent=Object.entries(d.states).filter(([,s])=>(s.entry_conditions||[]).length);
+  for(let i=0;i<ent.length;i++)for(let j=i+1;j<ent.length;j++){const A=interval(ent[i][1].entry_conditions),B=interval(ent[j][1].entry_conditions);if(overlap(A,B))warns.push(`Entry ranges overlap: <b>${esc(ent[i][0])}</b> (${rangeSay(A)}) and <b>${esc(ent[j][0])}</b> (${rangeSay(B)}). Only one side of a boundary should include “=”.`)}
+  if(errs.length){UI.lerr=[...new Set(errs)].map(esc).join('<br>');UI.lwarn=null;openSheet('logic',true);$('sh-b').scrollTop=0;return}
+  if(warns.length&&!force){UI.lerr=null;UI.lwarn=warns.join('<br>');openSheet('logic',true);$('sh-b').scrollTop=0;return}
+  let resorted=false;
+  for(const s of Object.values(d.states)){for(const b of s.charging_logic||[]){b.soc=+b.soc;if(b.price_on!=='min')b.price_on=+b.price_on;if(b.price_off!=='min')b.price_off=+b.price_off;if(b.known_minutes===''||b.known_minutes==null)delete b.known_minutes;else b.known_minutes=+b.known_minutes}
+    for(const c of s.entry_conditions||[])c.value=+c.value;
+    const before=JSON.stringify(s.charging_logic);(s.charging_logic||[]).sort((a,b)=>b.soc-a.soc);if(before!==JSON.stringify(s.charging_logic))resorted=true}
+  const mo=$('moff');if(mo&&!isNaN(+mo.value))S.cfg.minOffset=+mo.value;
+  S.logic=clone(d);if(!S.logic.states[S.sticky])S.sticky=Object.keys(S.logic.states)[0];
+  compute(true,'Rules');UI.lwarn=UI.lerr=null;closeSheet();render();toast('Rules saved'+(resorted?' · blocks re-sorted by SOC':'')+' → relay '+(S.relay?'ON':'OFF'));
+}
+function saveSettings(){
+  let bad=false;const chk=(id,f,msg)=>{const el=$(id);const e=f(el.value)?'':msg;$(id+'-e').textContent=e;el.classList.toggle('err',!!e);if(e)bad=true};
+  chk('mac',v=>/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(v.trim()),'format AA:BB:CC:DD:EE:FF');
+  chk('pollOn',v=>v>=10&&v<=600,'10–600 s');chk('pollOff',v=>v>=5&&v<=240,'5–240 min');chk('thrW',v=>v>=50&&v<=7000,'50–7000 W');
+  chk('probe',v=>v>=5&&v<=300,'5–300 s');chk('stale',v=>v>=5&&v<=120,'5–120 min');chk('fullHold',v=>v>=0&&v<=240,'0–240 min');
+  if(bad){toast('Fix the highlighted fields');return}
+  const c=S.cfg;Object.assign(c,{mac:$('mac').value.trim().toUpperCase(),pollOn:+$('pollOn').value,pollOff:+$('pollOff').value,thrW:+$('thrW').value,sign:$('sign').value,probe:+$('probe').value,stale:+$('stale').value,fullHold:+$('fullHold').value,polarity:$('polarity').value,defRelay:$('defRelay').value==='1'});
+  c.po={token:$('potk').value,user:$('pous').value,device:$('podv').value,enabled:$('poen').checked};
+  let wmsg='';if(UI.pickNet&&UI.pickNet!==c.wifi.ssid){c.wifi.ssid=UI.pickNet;wmsg=` · joining ${UI.pickNet} (hotspot if it fails for 5 min)`;UI.pickNet=null}
+  compute(true,'Settings');closeSheet();render();toast('Settings saved'+wmsg);
+}
+// logic field edits
+document.addEventListener('input',e=>{
+  const t=e.target;if(!t.closest('#sh-b'))return;
+  if(UI.sheet==='logic'&&UI.draft){const st=UI.draft.states[UI.lstate];
+    if(t.dataset.b!=null){const b=st.charging_logic[+t.dataset.b],k=t.dataset.k;let v=t.value.trim();if(k.startsWith('price')&&v.toLowerCase()==='min')v='min';b[k]=v===''?'':(v==='min'?'min':(isNaN(+v)?v:+v));drawLC();const say=t.closest('.blk').querySelector('.say');if(say){const okv=x=>x==='min'||(x!==''&&!isNaN(+x));if(okv(b.price_on)&&okv(b.price_off)&&!isNaN(+b.soc))say.innerHTML=blockSay(st.charging_logic,+t.dataset.b,S.mp)}}
+    if(t.dataset.c!=null){st.entry_conditions[+t.dataset.c][t.dataset.k]=t.dataset.k==='value'?(t.value===''?'':+t.value):t.value;drawLC()}
+  }
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.matches('input[name=mode]')){const dur=$('durbox');if(dur)dur.style.opacity=t.value.startsWith('manual')?1:.5}
+  if(t.dataset.sw){const[d,i,k]=t.dataset.sw.split(',').map(Number);const[h,m]=t.value.split(':').map(Number);S.cfg.sched[d][i][k]=h*60+m;openSheet('schedule',true);return}
+  if(UI.sheet!=='logic'||!UI.draft)return;
+  if(t.id==='ssel'){UI.draft.state_select=t.value;openSheet('logic',true)}
+  else if(t.id==='sname'){const nn=t.value.trim(),old=UI.lstate;if(!nn){$('snerr').textContent='name required';return}if(nn!==old&&UI.draft.states[nn]){$('snerr').textContent='name already used';return}
+    const ns={};for(const[k,v]of Object.entries(UI.draft.states))ns[k===old?nn:k]=v;UI.draft.states=ns;if(UI.draft.state_select===old)UI.draft.state_select=nn;if(S.sticky===old)S.sticky=nn;UI.lstate=nn;openSheet('logic',true)}
+  else if(t.id==='moff'){const v=+t.value;if(!isNaN(v)){S.cfg.minOffset=v;S.mp=S.l7?Math.round((S.l7.p+v)*10)/10:null;drawLC()}}
+  else if(t.id==='ljf'&&t.files[0]){t.files[0].text().then(x=>{$('lj').value=x;toast('File loaded — press “Apply to editor”')})}
+  else if(t.dataset.b!=null||t.dataset.c!=null)openSheet('logic',true);
+});
+// chart scrubbing
+(function(){const el=$('chart');let down=false;
+  el.addEventListener('pointerdown',e=>{if(!S.clock)return;down=true;el.setPointerCapture&&el.setPointerCapture(e.pointerId);scrubAt(e.clientX)});
+  el.addEventListener('pointermove',e=>{if(down||e.pointerType==='mouse'&&e.buttons)scrubAt(e.clientX)});
+  ['pointerup','pointercancel'].forEach(n=>el.addEventListener(n,()=>{down=false}));
+  el.addEventListener('keydown',e=>{if(!S.clock)return;const cur=UI.sel??NOW,st=e.shiftKey?5:60,[t0,t1]=view();
+    if(e.key==='ArrowRight'){setSel(Math.min(t1-5,cur+st));e.preventDefault()}else if(e.key==='ArrowLeft'){setSel(Math.max(t0,cur-st));e.preventDefault()}else if(e.key==='Escape'||e.key==='Home')setSel(NOW)});
+})();
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&UI.sheet&&!e.target.closest('#chart'))closeSheet()});
+document.addEventListener('click',e=>{if(!e.target.closest('#pop')&&!e.target.closest('[data-act=pop]'))$('pop').classList.remove('show');if(!e.target.closest('#demo'))$('demo').classList.remove('open')},true);
+function renderDemo(){$('dm').innerHTML=Object.entries(SCEN).map(([k,v])=>`<button data-act="scn" data-n="${k}" class="${+k===S.scn?'a':''}">${k} · ${v.name}</button>`).join('')}
+let rT;window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{renderChart();if(UI.sheet==='logic')drawLC()},120)});
+load(1);renderDemo();render();
+</script>
+</body>
+</html>
