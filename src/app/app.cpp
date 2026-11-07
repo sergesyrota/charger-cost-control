@@ -75,7 +75,10 @@ bool s_probe = false;          // next poll is the post-ON probe (due at s_next_
 uint32_t s_probe_gen = 0;      // bumped on every ON transition (probe armed)
 uint32_t s_wifi_wait = 0;      // millis deadline of a pending Wi-Fi join job (0 = none)
 char s_wifi_wait_ssid[33] = "";
-constexpr int64_t kSocFreshS = 12 * 3600;  // overlays ignore a SOC older than this
+// Overlays (full / SOC target) trust the last known SOC until the car is seen leaving (poll ->
+// not_detected). A full car parked asleep stays blocked (no ON/OFF churn); a car that left and came
+// back asleep isn't locked out by a stale 100 %. RAM-only: the first poll after boot re-derives it.
+static bool s_soc_departed = false;
 uint32_t s_last_min = 0, s_last_heap = 0;
 uint32_t s_extras_day = 0;
 bool s_clock_seen = false;
@@ -153,8 +156,7 @@ void evaluate(bool manual) {
     s_rt.ovr = Override();
   }
   float soc = !isnan(s_car.soc) ? s_car.soc : s_rt.last_soc;
-  int64_t soc_at = !isnan(s_car.soc) ? s_car.soc_at : s_rt.last_soc_at;
-  bool soc_fresh = s_car.soc_live || (clk && soc_at > 0 && now - soc_at <= kSocFreshS);
+  bool soc_fresh = s_car.soc_live || !s_soc_departed;
   if (!isnan(soc) && lroundf(soc) >= 100) {
     if (!s_full_since && clk) s_full_since = now;
   } else {
@@ -286,6 +288,9 @@ void doCarPoll(bool user) {
     if (c.soc_live && !isnan(c.soc)) {
       s_rt.last_soc = c.soc;
       s_rt.last_soc_at = c.soc_at;
+      s_soc_departed = false;
+    } else if (c.status == CarStatus::NotDetected) {
+      s_soc_departed = true;
     }
     // A probe this poll didn't serve (armed by an ON during the poll, or not yet due) keeps the
     // s_probe / s_next_poll that evaluate() set.

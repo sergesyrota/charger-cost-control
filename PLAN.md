@@ -251,8 +251,9 @@ written to the event log on transitions, and used in Pushover text.
 - **Full**: SOC ≥ 100 (rounded, like `Bolt.php`) → OFF, notify once "OFF: Bolt is full". (The PHP
   had a "hold 1 h after full" intent but the check is `> 00`, i.e. immediate — keep immediate;
   optional `full_hold_minutes` config default 0.)
-- Both overlays need a **fresh** SOC (read live by the latest poll, or within 12 h); a stale 100 %
-  must not lock charging out after the car was driven.
+- Overlays use the last known SOC **until the car is seen leaving** (a poll returns `not_detected`);
+  after that they ignore it until the next live SOC read. So a full car parked asleep stays OFF with no
+  ON/OFF churn, and a car that was driven and came back asleep isn't locked out by a stale 100 %.
 
 ### 7.3 Price logic — exact port of `Vehicle::getApplicableLogic` + `controlCharging`
 Config shape (unchanged, import `docs/reference/bolt-monitor-logic.json` as-is):
