@@ -1,0 +1,6 @@
+{
+  "name": "core",
+  "version": "0.1.0",
+  "description": "Pure C++ logic (no Arduino/ESP headers): price math, decision engine, OBD parsing, record codecs. Built for env:c3 and env:native.",
+  "build": { "srcDir": "src", "includeDir": "src" }
+}

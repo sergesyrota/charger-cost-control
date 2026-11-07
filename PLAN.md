@@ -127,7 +127,7 @@ All paths are absolute under `/Users/sergey/code/sergeysyrota/personal/`.
                 └───────────────────────────────────────────────────────────┘
 ```
 
-### Proposed source layout
+### Proposed source layout (superseded by `docs/MODULES.md`)
 ```
 charger-cost-control/
   platformio.ini            # envs: c3 (esp32-c3-devkitm-1 + USB CDC), native (host tests)
@@ -227,6 +227,14 @@ First applicable wins:
    valid; reverts to `auto` when reached). Indefinite manual on/off works without a clock.
 2. **Schedule** — per-weekday windows, e.g. Mon–Fri 01:00–05:00 ON. Requires valid clock. Outside
    all windows → fall through (configurable: "schedule only" mode makes outside-windows = OFF).
+   **Optional per-window price cap** `max_price` (¢/kWh supply, e.g. 3.0; absent = no cap). Inside a
+   capped window the relay is ON only while `currentSupply <= max_price`, regardless of the price-logic
+   state/blocks; when the price rises above the cap the window stops forcing ON and the mode's
+   outside-window behavior applies (Schedule → OFF, Schedule + price → price logic). Re-checked on every
+   5-minute price fetch, so it can turn back ON within the window when the price drops. Unknown price
+   inside a capped window → treated as over the cap. SOC target / full overlays still win. Reason
+   strings: "Inside schedule window Mon–Fri 00:00–03:00 (2.4¢ ≤ 3¢ cap)" / "Schedule window price
+   cap exceeded (3.4¢ > 3¢)". UI: optional "Max price" field per window in the schedule editor.
 3. **Price logic** — §7.3. Requires a known price.
 4. **Default** — `default_relay_state`, factory **OFF**. Used whenever the active mode can't decide
    (boot, no clock, no prices, etc.).
