@@ -1,0 +1,38 @@
+{
+    "states": {
+        "default": {
+            "entry_conditions": [
+                {
+                    "type": "soc",
+                    "value": 0,
+                    "operator": ">="
+                }
+            ],
+            "charging_logic": [
+                {
+                    "soc": 85,
+                    "price_on": -2,
+                    "price_off": -2,
+                    "known_minutes": 30
+                },
+                {
+                    "soc": 70,
+                    "price_on": -1,
+                    "price_off": -0.5,
+                    "known_minutes": 20
+                },
+                {
+                    "soc": 40,
+                    "price_on": 0,
+                    "price_off": 0.5,
+                    "known_minutes": 20
+                },
+                {
+                    "soc": 0,
+                    "price_on": 2,
+                    "price_off": 3
+                }
+            ]
+        }
+    }
+} 

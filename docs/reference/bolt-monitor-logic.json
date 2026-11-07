@@ -1,0 +1,70 @@
+{
+    "states": {
+        "\u0420\u0430\u0437\u0440\u044f\u0434": {
+            "entry_conditions": [
+                {
+                    "type": "soc",
+                    "value": 80,
+                    "operator": ">="
+                }
+            ],
+            "charging_logic": [
+                {
+                    "soc": 70,
+                    "price_on": -1,
+                    "price_off": -0.5,
+                    "known_minutes": 30
+                },
+                {
+                    "soc": 20,
+                    "price_on": -0.5,
+                    "price_off": 0,
+                    "known_minutes": 20
+                },
+                {
+                    "soc": 0,
+                    "price_on": 2,
+                    "price_off": 3
+                }
+            ]
+        },
+        "\u0417\u0430\u0440\u044f\u0434": {
+            "entry_conditions": [
+                {
+                    "type": "soc",
+                    "value": 20,
+                    "operator": "<="
+                }
+            ],
+            "charging_logic": [
+                {
+                    "soc": 80,
+                    "price_on": -1,
+                    "price_off": -0.5,
+                    "known_minutes": 20
+                },
+                {
+                    "soc": 40,
+                    "price_on": 0,
+                    "price_off": 0.5,
+                    "known_minutes": 20
+                },
+                {
+                    "soc": 0,
+                    "price_on": 2,
+                    "price_off": 3
+                }
+            ]
+        },
+        "\u041f\u043e\u0435\u0437\u0434\u043a\u0430": {
+            "entry_conditions": [],
+            "charging_logic": [
+                {
+                    "soc": 0,
+                    "price_on": 3,
+                    "price_off": 3
+                }
+            ]
+        }
+    }
+}

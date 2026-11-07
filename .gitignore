@@ -1,0 +1,6 @@
+.pio/
+.vscode/
+*.bin
+!test/fixtures/**
+src/web/ui_gz.h
+.DS_Store
