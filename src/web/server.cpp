@@ -1,7 +1,6 @@
 // HTTP :80 — gzipped UI, captive portal (hotspot), JSON API mount. Owner: web_api.
 #include "web/server.h"
 
-#include <DNSServer.h>
 #include <WiFi.h>
 
 #include "net/wifi_mgr.h"
@@ -12,8 +11,6 @@ namespace web {
 namespace {
 AsyncWebServer s_server(80);
 bool s_up = false;
-DNSServer s_dns;
-bool s_dns_on = false;
 char s_etag[24] = "";
 
 void redirectToPortal(AsyncWebServerRequest* r) {
@@ -59,19 +56,8 @@ void begin() {
   s_up = true;
 }
 
-void loop() {
-  bool ap = wifi::apActive();
-  if (ap && !s_dns_on) {
-    IPAddress ip;
-    if (!ip.fromString(wifi::apIp())) ip = IPAddress(192, 168, 4, 1);
-    s_dns.setTTL(60);
-    s_dns_on = s_dns.start(53, "*", ip);
-  } else if (!ap && s_dns_on) {
-    s_dns.stop();
-    s_dns_on = false;
-  }
-  if (s_dns_on) s_dns.processNextRequest();
-}
+// Captive DNS is owned by wifi_mgr (starts/stops with the hotspot); nothing to do here.
+void loop() {}
 
 AsyncWebServer& server() { return s_server; }
 bool serving() { return s_up; }

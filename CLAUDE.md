@@ -11,8 +11,9 @@ only, **active-high**: HIGH = charger ON) based on ComEd real-time supply prices
 power read from a BLE OBD dongle, a plain-HTTP local web UI, Pushover notifications, and HTTPS OTA.
 
 **Start with `PLAN.md`** — the full agreed design, owner decisions, reference-code pointers,
-milestones and open items. Status: architecture contracts + stub tree in place (builds); modules
-are being implemented behind the headers.
+milestones and open items. Status: all modules integrated and running on the board (hotspot,
+relay default, scheduler). Not yet exercised on hardware: STA Wi-Fi/TLS/ComEd fetch, BLE dongle,
+Pushover, OTA.
 
 ## Stack
 C++ / Arduino-ESP32 core 3.3.x (pioarduino, IDF 5.5) / PlatformIO. NimBLE-Arduino, ArduinoJson 7,
@@ -28,8 +29,20 @@ HTML/JS file `web/index.html` (design: `prototypes/option-5-app.html`), gzipped 
   `notify/pushover`, `ota/updater`, `web/` (server, api), `app/` (orchestrator; only place modules
   are wired), `main.cpp`.
 - Blocking work (TLS, BLE, OTA, Wi-Fi changes) runs on the loop task via `app::`; web handlers only
-  read thread-safe getters and queue actions through `app::`.
-- `tools/version.py` (FW_VERSION from `git describe`), `tools/build_ui.py` — pre-build hooks.
+  read thread-safe getters and queue actions through `app::` (exception: `app::setOverride`
+  evaluates synchronously — pure decide + GPIO + NVS — so the API reply shows the new relay state).
+- `app.cpp` is a cooperative scheduler: wifi -> prices::tick (one fetch max) -> derive/decide on
+  fetch, config change and every 60 s -> car poll cadence (post-ON probe, poll_on_s / poll_off_min)
+  -> stats -> pushover -> queued jobs -> OTA health check. Task watchdog 30 s on the loop task; long
+  waits in car_link / https_client call `wdtFeed()` (`src/app/wdt.h`).
+- BLE is initialised **only for the duration of a car poll** (`carlink::end()` after each poll):
+  keeping NimBLE up leaves too little heap for TLS.
+- Wi-Fi credentials live in NVS namespace `"wifi"` (wifi_mgr); config/logic/state in `"cc"`.
+  Captive DNS is owned by wifi_mgr (web::loop does nothing).
+- `include/nimble_trim.h` is force-included (`-include`) to compile out NimBLE peripheral/broadcaster
+  roles and the security manager (sdkconfig enables them; `-D` flags can't override).
+- `tools/version.py` (FW_VERSION from `git describe`), `tools/build_ui.py` (light minify + gzip,
+  UI ≈ 33 KB gz) — pre-build hooks. `tools/make_release.py` writes `dist/` (gitignored).
 
 ## Commands
 PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it globally).
@@ -38,6 +51,7 @@ PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it glob
 .venv/bin/pio run -e c3 -t upload       # USB flash (/dev/cu.usbmodem1101)
 .venv/bin/pio device monitor -b 115200  # serial
 .venv/bin/pio test -e native            # host unit tests (lib/core only)
+.venv/bin/python tools/make_release.py  # dist/firmware-<ver>.bin + manifest.json for a GitHub release
 ```
 
 ## Hard rules
@@ -57,8 +71,10 @@ PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it glob
 - Hotspot runs only when there are no Wi-Fi credentials or STA has been down for 5 min; never
   alongside a working STA connection.
 - OTA default manifest: `https://github.com/sergesyrota/charger-cost-control/releases/latest/download/manifest.json`.
-- Keep the image lean (libs alone ≈ 1.275 MB of the 1.6 MB slot): no std::regex/iostream, no new
-  libraries without asking. Tests are sparse: only high-value pure-logic cases.
+- Keep the image lean: `firmware.bin` is 1.79 MB = 94 % of the 1.81 MB app slot (partitions.csv,
+  no coredump partition). Check the real .bin size, not PlatformIO's "Flash:" line. No
+  std::regex/iostream, no new libraries without asking. Tests are sparse: only high-value
+  pure-logic cases.
 
 ## Related repos (reference only; don't edit from here)
 - `../comed-realtime-price-dashboard/price-worker/src/{comed,prices}.ts` — price feeds + math.

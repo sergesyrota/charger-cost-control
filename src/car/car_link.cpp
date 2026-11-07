@@ -6,6 +6,8 @@
 // bucket, discard if |ΔI| > 10 %). obd::cellPid()/cellVolts() are ready; needs a storage contract.
 #include "car/car_link.h"
 
+#include "app/wdt.h"
+
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 
@@ -59,6 +61,7 @@ bool waitPrompt(uint32_t timeout_ms) {
     if (millis() - t0 >= timeout_ms) return false;
     if (s_client && !s_client->isConnected()) return false;
     delay(10);
+    wdtFeed();
   }
   return true;
 }
@@ -115,7 +118,7 @@ void disconnect() {
   if (s_client->isConnected()) {
     s_client->disconnect();
     uint32_t t0 = millis();
-    while (s_client->isConnected() && millis() - t0 < 3000) delay(10);
+    while (s_client->isConnected() && millis() - t0 < 3000) { delay(10); wdtFeed(); }
   }
   s_client->deleteServices();  // free discovered attribute tables
 }
@@ -137,6 +140,13 @@ void begin() {
   s_client = NimBLEDevice::createClient();
   s_client->setConnectTimeout(kConnectTimeoutMs);
   s_inited = true;
+}
+
+void end() {
+  if (!s_inited || s_busy.load()) return;
+  NimBLEDevice::deinit(true);  // frees the client and the host stack (OTA needs the RAM)
+  s_client = nullptr;
+  s_inited = false;
 }
 
 void setMac(const char* mac) {

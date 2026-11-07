@@ -19,7 +19,7 @@ REPO = "sergesyrota/charger-cost-control"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN = os.path.join(ROOT, ".pio", "build", "c3", "firmware.bin")
 DIST = os.path.join(ROOT, "dist")
-SLOT = 0x190000  # partitions.csv app slot size
+SLOT = 0x1D0000  # partitions.csv app slot size
 
 
 def git_version():

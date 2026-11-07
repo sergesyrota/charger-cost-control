@@ -5,3 +5,4 @@
 src/web/ui_gz.h
 .DS_Store
 .venv/
+dist/

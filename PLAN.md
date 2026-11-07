@@ -365,13 +365,16 @@ each transition branch, full/SOC-target overlays, unknown price → default, UTF
 # Name,    Type, SubType,  Offset,   Size
 nvs,       data, nvs,      0x9000,   0x5000
 otadata,   data, ota,      0xE000,   0x2000
-app0,      app,  ota_0,    0x10000,  0x190000
-app1,      app,  ota_1,    0x1A0000, 0x190000
-littlefs,  data, spiffs,   0x330000, 0xC0000
-coredump,  data, coredump, 0x3F0000, 0x10000
+app0,      app,  ota_0,    0x10000,  0x1D0000
+app1,      app,  ota_1,    0x1E0000, 0x1D0000
+littlefs,  data, spiffs,   0x3B0000, 0x50000
 ```
-App slots 1.6 MB each (expected image 1.1–1.3 MB with Wi-Fi + TLS + NimBLE + async web); ~768 KB
-LittleFS for stats. Check image size in CI/build output; fail the build if > 90 % of a slot.
+**Revised at integration (2026-11-07):** the full image is 1.79 MB, which did not fit the original
+1.6 MB slots. App slots are now 1.81 MB each, LittleFS 320 KB, and the coredump partition was dropped
+(crash backtraces go to serial, reset reason is logged; IDF prints "No core dump partition found!" at
+boot — harmless). Stats retention shrank accordingly (hourly ~11 months, 5-min detail ~17 days,
+1024 sessions). Measure the real `firmware.bin` size (`esptool image-info`), not PlatformIO's
+"Flash:" figure, which under-reports by ~80 KB.
 Changing this table later requires one USB flash.
 
 ### 9.2 NVS (config + small state)
@@ -554,6 +557,17 @@ entry-condition operators → literal strict/inclusive (§7.3); hotspot policy (
 - **Price oracle:** `price-worker.serg-syrota.workers.dev` currently returns 404 on every path. For
   milestone-2 acceptance, run the reference `prices.ts` locally on the same captured fixtures instead.
 - **ComEd fixtures** captured to `test/fixtures/` (5-min feed, day-ahead today/tomorrow, actuals).
+- **Integrated build (2026-11-07, all modules):** `firmware.bin` **1,791,776 B = 94.3 %** of the
+  1,900,544 B slot (PlatformIO reports 1,714,497 B / 90.2 %; the .bin is what OTA writes). Static RAM
+  68,200 B (20.8 %). Gzipped UI 33,120 B. Biggest app-side lever if space runs out: the built-in
+  full CA bundle is ~69 KB (could be replaced by a handful of roots via `--wrap=esp_crt_bundle_attach`,
+  at the cost of CA-rotation risk). mDNS removal only saves ~6 KB. NimBLE peripheral/broadcaster/SM
+  are compiled out via `include/nimble_trim.h` (−16 KB).
+- **Heap (integrated, hotspot up, no STA, web serving):** BLE is brought up only for each car poll
+  and torn down after (`NimBLEDevice::deinit`), because keeping it initialised left only ~51 KB free
+  / 43 KB largest block — not enough for TLS. Now: **~121 KB free at boot (102 KB largest), ~115 KB
+  idle after BLE cycles (55 KB largest)**; min-ever ~51–55 KB during a BLE poll. Six back-to-back
+  init/connect/deinit cycles showed no leak. TLS heap still unmeasured (no Wi-Fi credentials yet).
 
 ---
 
@@ -591,6 +605,7 @@ entry-condition operators → literal strict/inclusive (§7.3); hotspot policy (
 ```
 pio run -e c3                    # build
 pio run -e c3 -t upload          # USB flash (first time / partition changes); port /dev/cu.usbmodem1101
+.venv/bin/python tools/make_release.py --notes "..."   # dist/firmware-<ver>.bin + manifest.json
 pio device monitor -b 115200     # serial log (USB CDC on boot enabled)
 pio test -e native               # host unit tests (parsers, price math, decision engine)
 ```

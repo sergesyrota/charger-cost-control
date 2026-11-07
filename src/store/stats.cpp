@@ -4,9 +4,10 @@
 // fixed-size records; when the newest is full a new one starts and the oldest beyond `maxSegs` is
 // deleted. (Append-only on purpose: LittleFS rewrites the tail of a file when you overwrite in the
 // middle, which would be slow, wear flash and need free space.) Records are time ordered.
-//   hourly   /hr<n>.bin  16 B x 1024 x 24 segs  ~ 2.8 years  (~390 KB max)
-//   detail   /dt<n>.bin  12 B x 1024 x  9 segs  ~ 32 days    (~110 KB max), 5-min records batched 12 at a time
-//   sessions /ss<n>.bin  32 B x  256 x  8 segs  = 2048       (~64 KB max)
+// Sized for the 320 KB LittleFS partition (app slots were grown to 1.81 MB):
+//   hourly   /hr<n>.bin  16 B x  512 x 16 segs  ~ 11 months  (~128 KB max)
+//   detail   /dt<n>.bin  12 B x 1024 x  5 segs  ~ 17 days    (~60 KB max), 5-min records batched 12 at a time
+//   sessions /ss<n>.bin  32 B x  256 x  4 segs  = 1024       (~32 KB max)
 // If free space drops under 48 KB when a new segment starts, the oldest hourly segment is dropped.
 // A crash loses <= 1 h of detail and the in-progress hour/session. flush() (reboot/OTA) writes the
 // in-progress session as finished and the partial hour as its own record (hourly rows are additive).
@@ -47,9 +48,9 @@ struct Ring {
 };
 
 uint8_t g_detPend[12 * rec::kDetailSize];
-Ring g_hourly{"hr", rec::kHourlySize, 1024, 24, 0, nullptr};
-Ring g_detail{"dt", rec::kDetailSize, 1024, 9, 12, g_detPend};
-Ring g_sess{"ss", rec::kSessionSize, 256, 8, 0, nullptr};
+Ring g_hourly{"hr", rec::kHourlySize, 512, 16, 0, nullptr};
+Ring g_detail{"dt", rec::kDetailSize, 1024, 5, 12, g_detPend};
+Ring g_sess{"ss", rec::kSessionSize, 256, 4, 0, nullptr};
 
 void segPath(const Ring& r, uint32_t seq, char* out) { snprintf(out, 24, "/%s%u.bin", r.prefix, (unsigned)seq); }
 uint32_t le32(const uint8_t* p) { return p[0] | (p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24); }

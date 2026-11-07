@@ -8,7 +8,8 @@
 
 namespace carlink {
 
-void begin();                         // NimBLEDevice::init, central only
+void begin();                         // NimBLEDevice::init, central only (poll() calls it lazily)
+void end();                           // NimBLEDevice::deinit; the app calls it after every poll to free ~60 KB
 void setMac(const char* mac);         // "8C:DE:52:DE:B4:A0"
 
 struct PollOpts {

@@ -14,6 +14,7 @@
 
 #include <memory>
 
+#include "app/wdt.h"
 #include "net/clock.h"
 #include "net/net_lock.h"
 #include "net/wifi_mgr.h"
@@ -34,6 +35,7 @@ class CbSink : public Stream {
   size_t write(uint8_t c) override { return write(&c, 1); }
   size_t write(const uint8_t* buf, size_t len) override {
     if (aborted_) return 0;
+    wdtFeed();
     if (cb_ && !cb_(buf, len)) {
       aborted_ = true;
       return 0;
@@ -110,6 +112,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
   String cur(url);
   static const char* kHeaders[] = {"Location"};
   for (int hop = 0; hop <= kMaxRedirects; hop++) {
+    wdtFeed();
     logHeap("before", cur.c_str());
     // Heap-allocated: keeps the loop task's stack small (TLS handshake needs it).
     std::unique_ptr<NetworkClientSecure> client(new NetworkClientSecure());
