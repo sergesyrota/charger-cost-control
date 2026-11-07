@@ -17,7 +17,7 @@ struct Manifest {
   char sha256[65] = "";    // "" for direct .bin
   uint32_t size = 0;       // 0 unknown
   char notes[200] = "";
-  bool direct_bin = false;
+  bool direct_bin = false; // true => no sha256 verification (UI should warn)
 };
 
 struct Progress {
@@ -28,12 +28,23 @@ struct Progress {
   Manifest manifest;       // last checked
 };
 
-bool check(const char* url);          // sets phase Available / UpToDate / Error
-bool install(const char* url);        // url "" => use last checked manifest; sets Done on success
+// Returns true when the check succeeded (phase Available or UpToDate); false => phase Error.
+// Available = manifest version newer than FW_VERSION (or a direct .bin / unparsable running version).
+bool check(const char* url);
+// url "" => use last checked manifest (installs even if UpToDate: explicit user action).
+// Holds netlock for the whole download. Sets Done on success; the caller then flushes + reboots.
+bool install(const char* url);
 Progress progress();
 
 bool runningFromRollback();           // booted the previous slot after a failed update
 bool pendingVerify();                 // current image is PENDING_VERIFY (not yet marked valid)
-void markValid();                     // esp_ota_mark_app_valid_cancel_rollback()
+void markValid();                     // esp_ota_mark_app_valid_cancel_rollback() (no-op unless pending)
+// Health deadline missed: if (and only if) the running image is PENDING_VERIFY, mark it invalid and
+// reboot into the previous slot (does not return). Otherwise no-op.
+void rollbackIfPending();
+
+// Pure helper (exposed for reuse): compares dotted numeric versions ("v1.4.0", "1.3.2-5-gabc-dirty").
+// Returns <0 / 0 / >0; `ok` false if either has no leading number.
+int compareVersions(const char* a, const char* b, bool* ok = nullptr);
 
 }  // namespace ota
