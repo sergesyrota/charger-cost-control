@@ -26,10 +26,15 @@ class FiveMinParser {
   // tokenizer state (implementation-defined)
   char tok_[24];
   uint8_t tok_len_ = 0;
-  uint8_t st_ = 0;
+  uint8_t st_ = 0;         // 0 idle, 1 in string, 2 in bare token
+  uint8_t key_ = 0;        // 0 none/other, 1 millisUTC, 2 price
+  bool want_val_ = false;  // a ':' was seen; next token is a value
+  bool in_key_ = false;    // current string is a key
+  uint8_t depth_ = 0;
+  uint8_t have_ = 0;       // bit0 epoch, bit1 price
   uint32_t pend_epoch_ = 0;
   float pend_price_ = 0;
-  uint8_t have_ = 0;
+  void endToken();
 };
 
 // ServletFeed (day-ahead "daynexttoday" and actuals "day"): JS text
@@ -47,8 +52,10 @@ class ServletParser {
   uint8_t n_ = 0;
   char tok_[24];
   uint8_t tok_len_ = 0;
-  uint8_t st_ = 0;
+  uint8_t st_ = 0;     // 0 search literal, 1 args, 2 before price, 3 price number
+  uint8_t match_ = 0;  // chars of "Date.UTC(" matched
   uint8_t argi_ = 0;
+  bool argbad_ = false;
   int8_t hour_ = -1;
 };
 
