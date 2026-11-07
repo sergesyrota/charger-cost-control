@@ -447,7 +447,7 @@ size_t fillSessions(uint16_t limit, uint32_t& cursor, char* buf, size_t cap) {
 
 namespace {
 size_t aggregate(bool monthly, uint16_t n, uint32_t hoursPerBin, Agg* out, size_t max) {
-  constexpr size_t kMaxBins = 36;
+  constexpr size_t kMaxBins = 62;   // daily API allows up to 62 days
   if (n > max) n = (uint16_t)max;
   if (n > kMaxBins) n = kMaxBins;
   if (!n) return 0;

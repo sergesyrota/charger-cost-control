@@ -16,6 +16,7 @@
 #include "car/car_status.h"
 #include "car/elm_parse.h"
 #include "car/obd_pids.h"
+#include "net/clock.h"
 #include "net/net_lock.h"
 
 namespace carlink {
@@ -158,7 +159,7 @@ bool busy() { return s_busy.load(); }
 bool poll(CarSnapshot& io, const PollOpts& opts, int64_t now) {
   if (!s_inited) begin();
   io.last_poll_at = now;
-  io.last_poll_up_s = millis() / 1000;
+  io.last_poll_up_s = sysclock::uptimeS();  // 64-bit esp_timer: no 49.7-day millis() wrap
   io.error[0] = 0;
 
   netlock::Guard lock("car", kLockTimeoutMs);

@@ -2,8 +2,11 @@
 #include "store/config_codec.h"
 
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <type_traits>
 
 namespace cfgjson {
 
@@ -43,6 +46,7 @@ void toApi(const Config& c, JsonObject o) {
     jw["start"] = cp(t);
     formatHHMM(w.end_min, t);
     jw["end"] = cp(t);
+    if (!isnan(w.max_price)) jw["max_price"] = w.max_price;
   }
   o["dongle_mac"] = cp(c.dongle_mac);
   o["poll_on_s"] = c.poll_on_s;
@@ -81,6 +85,7 @@ struct Ctx {
     if (!o[k].is<double>()) return fail(k, "must be a number");
     double v = o[k].as<double>();
     if (v < lo || v > hi) return fail(k, "out of range");
+    if (std::is_integral<T>::value && v != floor(v)) return fail(k, "must be an integer");
     dst = (T)v;
   }
   // string with max length (excl. NUL) -> char buffer; returns true if provided
@@ -146,6 +151,12 @@ bool mergeApi(JsonObjectConst in, Config& c, std::string& err) {
           }
           if (!parseHHMM(w["start"] | "", sw.start_min) || !parseHHMM(w["end"] | "", sw.end_min))
             x.fail("schedule", "times must be HH:MM");
+          JsonVariantConst mp = w["max_price"];
+          if (!mp.isNull()) {   // absent / null = no cap
+            if (!mp.is<double>() || mp.is<bool>() || mp.as<double>() < -100 || mp.as<double>() > 100)
+              x.fail("schedule", "max_price must be a number (-100..100) or null");
+            else sw.max_price = roundf(mp.as<float>() * 10.0f) / 10.0f;
+          }
           if (x.bad) break;
           t.windows[t.window_count++] = sw;
         }
@@ -169,7 +180,7 @@ bool mergeApi(JsonObjectConst in, Config& c, std::string& err) {
   }
   if (!in["wifi"].isNull()) {
     if (!in["wifi"].is<JsonObjectConst>()) x.fail("wifi", "must be an object");
-    else x.num(in["wifi"].as<JsonObjectConst>(), "connect_timeout_s", 10, 3600, t.wifi_timeout_s);
+    else x.num(in["wifi"].as<JsonObjectConst>(), "connect_timeout_s", 30, 3600, t.wifi_timeout_s);
   }
 
   if (x.bad) return false;
@@ -190,6 +201,9 @@ std::string toStorage(const Config& c) {
 bool fromStorage(const char* json, size_t len, Config& out) {
   JsonDocument d;
   if (deserializeJson(d, json, len) || !d.is<JsonObject>()) return false;
+  // Older firmware accepted connect_timeout_s 10..29 (always run as 30): lift it instead of rejecting.
+  JsonVariantConst ct = d["wifi"]["connect_timeout_s"];
+  if (ct.is<double>() && ct.as<double>() < 30) d["wifi"]["connect_timeout_s"] = 30;
   Config t;
   std::string e;
   if (!mergeApi(d.as<JsonObjectConst>(), t, e)) return false;

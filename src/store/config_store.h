@@ -9,6 +9,7 @@ namespace cfgstore {
 
 void begin();
 bool loadConfig(Config& out);                  // false => factory defaults written to `out`
+bool peekConfig(Config& out);                  // like loadConfig but never logs (usable before LittleFS)
 bool saveConfig(const Config& c);
 bool loadLogic(logic::LogicConfig& out);       // false => logic::factoryDefault()
 bool saveLogic(const logic::LogicConfig& l);

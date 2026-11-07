@@ -305,10 +305,10 @@ const rerender=()=>renderLive(true);
 
 /* ---------- status polling + job watching ---------- */
 const W={};
-function watch(job,fn){W[job]={t0:Date.now(),n0:now(),busy:false,fn};poll()}
+function watch(job,fn,q){W[job]={t0:Date.now(),seq:q&&q.seq,busy:false,fn};poll()}
 function checkJobs(){const J=S.st.jobs||{};for(const k in W){const w=W[k],j=J[k]||{};
  if(j.state==='queued'||j.state==='running'){w.busy=true;continue}
- const fresh=w.busy||(j.at!=null&&w.n0!=null&&j.at>=w.n0);
+ const fresh=w.busy||(w.seq!=null&&j.seq!=null&&j.seq>=w.seq);
  if(((j.state==='ok'||j.state==='error')&&fresh)||Date.now()-w.t0>120000){delete W[k];w.fn(j.state==='ok'&&fresh?null:(j.error||'timed out'))}}}
 let pollT,polling=false;
 async function poll(){clearTimeout(pollT);if(document.hidden||polling)return;polling=true;
@@ -339,7 +339,7 @@ function condText(cs){if(!cs||!cs.length)return 'Never auto‑entered — force 
  return 'Enters when '+cs.map(c=>`battery ${c.operator.replace('>=','≥').replace('<=','≤')} ${c.value}%`).join(' and ')}
 function winText(w){const d=w.days.slice().sort();
  const set=d.join(',');const ds=set==='1,2,3,4,5'?'Mon–Fri':set==='0,6'?'Sat–Sun':set==='0,1,2,3,4,5,6'?'Every day':d.map(x=>DAYN[x]).join(' ');
- return `${ds} ${w.start}–${w.end}`}
+ return `${ds} ${w.start}–${w.end}${nn(w.max_price)?' ≤ '+fmtC(w.max_price):''}`}
 const sched=()=>(S.cfg&&S.cfg.schedule)||[];
 function nextWindowStart(){const n=now();if(n==null)return null;const d=cd(n),day=d.getUTCDay(),nm=d.getUTCHours()*60+d.getUTCMinutes();let best=null;
  for(let k=0;k<8;k++)for(const w of sched()){if(!w.days.includes((day+k)%7))continue;const dt=k*1440+tm(w.start)-nm;if(dt>0&&(best==null||dt<best))best=dt}
@@ -512,6 +512,7 @@ SCR.schedule=()=>{if(!S.cfg)return loading();if(!S.ui.sched)S.ui.sched=clone(sch
  ${ws.map((w,i)=>`<div class="group"><div class="gh">Window ${i+1}${S.st.schedule_active===i&&inSched?' · <span class="ok">active now</span>':''}</div><div class="card pad">
   <div class="days">${[1,2,3,4,5,6,0].map(d=>`<button class="${w.days.includes(d)?'on':''}" data-act="day" data-w="${i}" data-d="${d}">${DAYN[d][0]}${d===2||d===4?DAYN[d][1]:''}</button>`).join('')}</div>
   <div class="flex mt"><label class="fld sp" style="margin:0"><span>Relay ON from</span><input type="time" value="${w.start}" data-ch="win" data-w="${i}" data-k="start"></label><label class="fld sp" style="margin:0"><span>until</span><input type="time" value="${w.end}" data-ch="win" data-w="${i}" data-k="end"></label></div>
+  <label class="fld"><span>Max price ¢ (optional) — ON only while the price is at or below this</span><input type="number" step="0.1" min="-100" max="100" placeholder="No cap" value="${nn(w.max_price)?w.max_price:''}" data-ch="winCap" data-w="${i}"></label>
   <div class="err ${winErr(w)?'show':''}" style="padding:8px 0 0">${winErr(w)}</div>
   <div class="flex mt"><span class="small muted sp">${tm(w.start)>tm(w.end)?'Overnight window — ends next morning.':''}</span><button class="btn r sm" data-act="delWin" data-w="${i}">${I('trash')}Remove</button></div></div></div>`).join('')}
  ${ws.length<8?'<button class="addband mt" data-act="addWin">+ Add window</button>':''}
@@ -684,7 +685,7 @@ function stateSheet(isNew){const n=S.ui.selState,st=S.ui.draft.states[n];S.ui.co
  const conds=()=>S.ui.condDraft.map((c,i)=>`<div class="cond"><span class="small">Battery</span><select data-ch="condOp" data-i="${i}">${OPS.map(o=>`<option ${o===c.operator?'selected':''}>${o}</option>`).join('')}</select><input type="number" min="0" max="100" value="${c.value}" data-ch="condV" data-i="${i}"><span class="small">%</span><span class="sp"></span><button data-act="delCond" data-i="${i}" class="bad">${I('x')}</button></div>`).join('')||'<div class="small muted mt">No conditions — this state is only used when forced (e.g. a trip tomorrow).</div>';
  S.ui.renderConds=()=>{$('#conds').innerHTML=conds()};
  openSheet(`<div class="grab"></div><h2>${isNew?'New state':'Edit state'}</h2>
- <label class="fld"><span>Name</span><input id="s_name" value="${esc(n)}" maxlength="24"></label><div class="err" id="s_err"></div>
+ <label class="fld"><span>Name</span><input id="s_name" value="${esc(n)}" maxlength="47"></label><div class="err" id="s_err"></div>
  <div class="fld"><span>Enter this state automatically when… (all must hold)</span><div id="conds">${conds()}</div><button class="btn s sm mt" data-act="addCond">${I('plus')}Condition</button></div>
  <div class="small muted mt">States are checked in order; the first match wins and stays (“sticky”) until another state’s conditions are met.</div>
  <div class="flex mt2"><button class="btn r" data-act="delState" ${Object.keys(S.ui.draft.states).length<2?'disabled':''}>${I('trash')}Delete</button><span class="sp"></span><button class="btn g" data-act="doneState" data-old="${esc(n)}">Done</button></div>`)}
@@ -702,7 +703,9 @@ async function override(body){try{const {j}=await api('/api/override','POST',bod
  toast(m.t+(j.until?' until '+fmtT(j.until):body.mode.startsWith('manual')?' indefinitely':'')+' · relay '+(j.relay?'ON':'OFF'));poll()}catch(e){toast(esc(errMsg(e)),'warn')}}
 async function saveSched(){const ws=S.ui.sched;if(ws.some(winErr)){render();return}
  const ok=await putCfg({schedule:ws},'Schedule saved');if(!ok){S.ui.sched=null;render()}}
-function otaPoll(){clearTimeout(S.otaT);api('/api/ota/progress').then(({j})=>{const prev=(S.ota||{}).phase;S.ota=j;const w=S.ui.otaWant;
+function otaPoll(){clearTimeout(S.otaT);api('/api/ota/progress').then(({j})=>{const prev=(S.ota||{}).phase,w=S.ui.otaWant;
+  if(w&&(j.job==='queued'||j.job==='running')&&!OTA_ACTIVE[j.phase]&&j.phase!=='done'){S.otaT=setTimeout(otaPoll,1000);return} /* phase still from before the request */
+  S.ota=j;
   if(w==='check'&&!OTA_ACTIVE[j.phase]){S.ui.otaWant=null;if(j.phase==='available')toast('Update available: v'+esc(j.manifest.version),'info');else if(j.phase==='up_to_date')toast('Already up to date');else if(j.phase==='error')toast(esc(j.error||'Check failed'),'warn')}
   if(w==='install'){if(j.phase==='done'&&!S.reboot)S.reboot={up:S.st.uptime_s,ver:j.manifest&&j.manifest.version};if(j.phase==='error'){S.ui.otaWant=null;toast(esc(j.error||'Update failed'),'warn')}}
   renderLive();if(cur()==='firmware'&&prev!==j.phase)render();
@@ -714,8 +717,8 @@ const ACT={
  pickMode:t=>{const m=t.dataset.m;if(m.startsWith('manual'))return durSheet(m);override({mode:m})},
  setMode:t=>override({mode:t.dataset.m}),
  pickDur:t=>{const m=t.dataset.m,d=t.dataset.d,b={mode:m};if(d!=='inf')b.until=d==='7'?next7():now()+(+d)*3600;override(b)},
- poll:async()=>{if(W.car_poll)return;try{await api('/api/car/poll','POST',{});watch('car_poll',err=>{const c=S.st.car||{};
-   if(err)toast('Car poll: '+esc(err),'warn');else toast(`Car ${CARTXT[c.status]||esc(c.status)}${nn(c.soc)?' · '+Math.round(c.soc)+'%':''}${c.status==='charging'&&nn(c.kw)?' · '+c.kw.toFixed(1)+' kW':''}`);renderLive(true)});renderLive(true)}
+ poll:async()=>{if(W.car_poll)return;try{const {j:q}=await api('/api/car/poll','POST',{});watch('car_poll',err=>{const c=S.st.car||{};
+   if(err)toast('Car poll: '+esc(err),'warn');else toast(`Car ${CARTXT[c.status]||esc(c.status)}${nn(c.soc)?' · '+Math.round(c.soc)+'%':''}${c.status==='charging'&&nn(c.kw)?' · '+c.kw.toFixed(1)+' kW':''}`);renderLive(true)},q);renderLive(true)}
   catch(e){toast(esc(errMsg(e)),'warn')}},
  selState:t=>{S.ui.selState=t.dataset.n;render()},
  editBand:t=>bandSheet(+t.dataset.i),
@@ -731,7 +734,7 @@ const ACT={
  addCond:()=>{S.ui.condDraft.push({type:'soc',operator:'>=',value:50});S.ui.renderConds()},
  delCond:t=>{S.ui.condDraft.splice(+t.dataset.i,1);S.ui.renderConds()},
  doneState:t=>{const old=t.dataset.old,nn2=$('#s_name').value.trim(),err=$('#s_err');
-  let e=!nn2?'Name can’t be empty.':(nn2!==old&&S.ui.draft.states[nn2])?'A state with that name already exists.':'';
+  let e=!nn2?'Name can’t be empty.':(nn2!==old&&S.ui.draft.states[nn2])?'A state with that name already exists.':new TextEncoder().encode(nn2).length>47?'Name is too long (max 47 bytes — about 23 Cyrillic letters).':'';
   if(!e&&S.ui.condDraft.some(c=>isNaN(c.value)||c.value<0||c.value>100))e='Condition values must be 0–100.';
   if(e){err.textContent=e;err.classList.add('show');return}
   rebuildStates((k,v)=>k===old?[nn2,Object.assign(v,{entry_conditions:S.ui.condDraft})]:[k,v]);
@@ -761,7 +764,7 @@ const ACT={
  secClr:t=>{const k=t.dataset.k,on=!t.classList.contains('on');t.classList.toggle('on',on);t.textContent=on?'Undo':'Clear';const i=$('#p_'+k);i.disabled=on;if(on)i.value='';
   $('#'+k+'_st').innerHTML=on?'<span class="bad">will be cleared on Save</span>':'•••• set — type to replace'},
  pushTest:async()=>{if(W.push_test)return;if(!clk()){toast('Can’t send yet — HTTPS needs the clock','warn');return}
-  try{await api('/api/pushover/test','POST',{});toast('Sending…','refresh');watch('push_test',err=>{toast(err?'Test failed: '+esc(err):'Test notification sent',err?'warn':'check');if(cur()==='notify')$('[data-act=pushTest]').innerHTML=I('bell')+'Send test'});$('[data-act=pushTest]').innerHTML=I('refresh','spin')+'Send test'}
+  try{const {j:q}=await api('/api/pushover/test','POST',{});toast('Sending…','refresh');watch('push_test',err=>{toast(err?'Test failed: '+esc(err):'Test notification sent',err?'warn':'check');if(cur()==='notify')$('[data-act=pushTest]').innerHTML=I('bell')+'Send test'},q);$('[data-act=pushTest]').innerHTML=I('refresh','spin')+'Send test'}
   catch(e){toast(esc(errMsg(e))+(e.status===400?' — save credentials first':''),'warn')}},
  scan:async t=>{S.ui.scan='busy';renderLive(true);let q=t?'?refresh=1':'';
   for(let k=0;k<20;k++){try{const r=await api('/api/wifi/scan'+q);q='';if(r.s===200&&r.j&&r.j.networks){const seen={};S.ui.scan=r.j.networks.filter(n=>n.ssid&&!seen[n.ssid]&&(seen[n.ssid]=1)).sort((a,b)=>b.rssi-a.rssi);break}}
@@ -776,8 +779,8 @@ const ACT={
   if(pw&&(pw.length<8||pw.length>63))return bad('Wi‑Fi passwords are 8–63 characters.');
   if(n.secure&&n.ssid!=null&&!pw&&ssid!==S.st.wifi.ssid)return bad('Enter the password.');
   if(n.known&&!pw)return bad('Type the new password.');
-  try{await api('/api/wifi','POST',{ssid,password:pw});closeSheet();toast('Connecting to '+esc(ssid)+'…','refresh');
-   watch('wifi',err=>{toast(err?'Wi‑Fi: '+esc(err):'Connected to '+esc(ssid),err?'warn':'check');renderLive(true)});renderLive(true)}
+  try{const {j:q}=await api('/api/wifi','POST',{ssid,password:pw});closeSheet();toast('Connecting to '+esc(ssid)+'…','refresh');
+   watch('wifi',err=>{toast(err?'Wi‑Fi: '+esc(err):'Connected to '+esc(ssid),err?'warn':'check');renderLive(true)},q);renderLive(true)}
   catch(e){bad(errMsg(e))}},
  otaReset:()=>{$('#f_url').value=OTA_DEFAULT;S.ui.fwUrl=OTA_DEFAULT},
  otaCheck:async()=>{const u=$('#f_url').value.trim(),e=$('[data-err=url]');let msg='';
@@ -818,6 +821,8 @@ const CH={
  condOp:t=>{S.ui.condDraft[+t.dataset.i].operator=t.value},
  condV:t=>{S.ui.condDraft[+t.dataset.i].value=t.value===''?NaN:+t.value;t.classList.toggle('in-bad',isNaN(+t.value)||+t.value<0||+t.value>100)},
  win:t=>{const w=S.ui.sched[+t.dataset.w];if(!t.value)return;w[t.dataset.k]=t.value;saveSched()},
+ winCap:t=>{const w=S.ui.sched[+t.dataset.w],v=t.value.trim();if(v===''){w.max_price=null;saveSched();return}
+  const n=+v;if(isNaN(n)||n<-100||n>100){t.classList.add('in-bad');toast('Max price must be −100…100¢ or empty','warn');return}w.max_price=Math.round(n*10)/10;saveSched()},
  overlay:t=>{S.ui.overlay=t.checked;render()},
  jsonFile:t=>{const f=t.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('#jsontxt').value=r.result;toast('File loaded — tap Apply','info')};r.readAsText(f)}
 };

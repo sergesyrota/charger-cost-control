@@ -14,7 +14,6 @@
 #include "net/clock.h"
 #include "net/wifi_mgr.h"
 #include "ota/updater.h"
-#include "price/price_fetcher.h"
 #include "store/config_codec.h"
 #include "store/event_log.h"
 #include "store/stats.h"
@@ -48,7 +47,24 @@ void sendErr(AsyncWebServerRequest* r, int code, const char* msg) {
   sendJson(r, code, d);
 }
 
-void sendQueued(AsyncWebServerRequest* r) { sendRaw(r, 202, "{\"queued\":true}"); }
+// 202 with the job's sequence number: the UI treats a finished job with seq >= this as fresh.
+void sendQueued(AsyncWebServerRequest* r, uint16_t seq) {
+  char b[40];
+  snprintf(b, sizeof(b), "{\"queued\":true,\"seq\":%u}", (unsigned)seq);
+  sendRaw(r, 202, b);
+}
+
+// CSRF guard (no auth by owner decision): state-changing routes need a JSON content type (a
+// cross-site page can't send one without a CORS preflight, which we never answer) and, when the
+// browser sends Origin, it must name this host.
+bool sameOriginJson(AsyncWebServerRequest* r) {
+  if (!r->contentType().startsWith("application/json")) return false;
+  if (!r->hasHeader("Origin")) return true;
+  String o = r->header("Origin"), host = r->host();
+  int p = o.indexOf("://");
+  if (p >= 0) o = o.substring(p + 3);
+  return host.length() && o.equalsIgnoreCase(host);
+}
 
 // ---------------------------------------------------------------- JSON body routes
 using JsonFn = std::function<void(AsyncWebServerRequest*, JsonObject)>;
@@ -57,6 +73,7 @@ void onJson(AsyncWebServer& s, const char* uri, WebRequestMethod m, size_t maxBo
   s.on(
       uri, m,
       [maxBody, fn](AsyncWebServerRequest* r) {
+        if (!sameOriginJson(r)) return sendErr(r, 415, "Content-Type: application/json from this device's own page required");
         size_t len = r->contentLength();
         if (len > maxBody) return sendErr(r, 413, "body too large");
         JsonDocument doc;
@@ -92,12 +109,15 @@ void sendChunked(AsyncWebServerRequest* r, FillFn fill) {
   AsyncWebServerResponse* res =
       r->beginChunkedResponse("application/json", [st, fill](uint8_t* buf, size_t maxLen, size_t) -> size_t {
         if (st->done) return 0;
-        if (maxLen < 160) return RESPONSE_TRY_AGAIN;
-        size_t n = fill(st->cursor, (char*)buf + 1, maxLen - 2);
+        if (maxLen < 400) return RESPONSE_TRY_AGAIN;  // must fit the largest row (session ~200 B)
+        // The fillers keep their own "emitted" flag in the cursor and prefix ',' when continuing,
+        // so only the opening '[' is added here.
+        const size_t off = st->first ? 1 : 0;
+        size_t n = fill(st->cursor, (char*)buf + off, maxLen - 1 - off);
         if (n > 0) {
-          buf[0] = st->first ? '[' : ',';
+          if (st->first) buf[0] = '[';
           st->first = false;
-          return n + 1;
+          return n + off;
         }
         st->done = true;
         if (st->first) {
@@ -113,7 +133,9 @@ void sendChunked(AsyncWebServerRequest* r, FillFn fill) {
 
 // ---------------------------------------------------------------- misc helpers
 void setEpoch(JsonVariant v, int64_t e) {
-  if (e > 0) v.set((double)e); else v.set(nullptr);
+  // integer, never double: ArduinoJson stores exactly-float-representable doubles as float and
+  // prints them with 6 significant digits (1794085888 -> 1.794086e9).
+  if (e > 0) v.set((int64_t)e); else v.set(nullptr);
 }
 void setTenths(JsonVariant v, int16_t t) {
   float f = rec::fromTenths(t);
@@ -138,6 +160,7 @@ void jobJson(JsonObject o, const app::Job& j) {
   o["state"] = app::jobStateName(j.state);
   o["error"] = (const char*)j.error;
   setEpoch(o["at"], j.finished_at);
+  o["seq"] = j.seq;
 }
 
 // Index of the schedule window active at `t`, or -1.
@@ -214,14 +237,16 @@ void handleStatus(AsyncWebServerRequest* r) {
   jp["current"] = p.current;
   jp["estimated"] = p.estimated;
   jp["known"] = !isnan(p.current);
-  if (p.five_at > 0 && now > 0) jp["age_s"] = (double)(now - p.five_at); else jp["age_s"] = nullptr;
+  if (p.five_at > 0 && now > 0) jp["age_s"] = (int64_t)(now - p.five_at); else jp["age_s"] = nullptr;
   jp["known_minutes"] = p.known_minutes;
   jp["hour_avg"] = p.hour_avg;
   jp["lowest7"] = p.lowest7;
   jp["min_price"] = p.min_price;
   jp["min_offset"] = cfg.min_offset;
   jp["stale_min"] = cfg.stale_min;
-  jp["last_error"] = prices::lastError();
+  char perr[48];
+  app::priceError(perr, sizeof(perr));
+  jp["last_error"] = perr;
 
   JsonObject jc = d["car"].to<JsonObject>();
   jc["status"] = carStatusName(car.status);
@@ -542,6 +567,8 @@ void handleOtaProgress(AsyncWebServerRequest* r) {
   ota::Progress p = ota::progress();
   JsonDocument d;
   d["phase"] = ota::phaseName(p.phase);
+  // queued/running: `phase` may still be the previous result until the loop task starts the job
+  d["job"] = app::jobStateName(app::jobs().ota.state);
   d["current"] = FW_VERSION;
   if (p.has_manifest) {
     JsonObject m = d["manifest"].to<JsonObject>();
@@ -594,7 +621,7 @@ void postWifi(AsyncWebServerRequest* r, JsonObject body) {
   if (pl != 0 && (pl < 8 || pl > 63)) return sendErr(r, 400, "password must be 8-63 characters");
   if (jobBusy(app::jobs().wifi)) return sendErr(r, 409, "wifi change already in progress");
   app::requestWifi(ssid, pass);
-  sendQueued(r);
+  sendQueued(r, app::jobs().wifi.seq);
 }
 
 // Reads an optional "url" (must be https) from the body; returns false after sending an error.
@@ -630,12 +657,12 @@ void registerRoutes(AsyncWebServer& s) {
     if (jobBusy(app::jobs().push_test)) return sendErr(r, 409, "test already running");
     std::string err;
     if (!app::requestPushoverTest(err)) return sendErr(r, 400, err.empty() ? "pushover not configured" : err.c_str());
-    sendQueued(r);
+    sendQueued(r, app::jobs().push_test.seq);
   });
   onJson(s, "/api/car/poll", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject) {
     if (jobBusy(app::jobs().car_poll)) return sendErr(r, 409, "poll already running");
     app::requestCarPoll();
-    sendQueued(r);
+    sendQueued(r, app::jobs().car_poll.seq);
   });
   onJson(s, "/api/ota/check", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject b) {
     const char* url;
@@ -643,7 +670,7 @@ void registerRoutes(AsyncWebServer& s) {
     if (jobBusy(app::jobs().ota)) return sendErr(r, 409, "OTA already running");
     std::string err;
     if (!app::requestOtaCheck(url, err)) return sendErr(r, 400, err.empty() ? "cannot check" : err.c_str());
-    sendQueued(r);
+    sendQueued(r, app::jobs().ota.seq);
   });
   onJson(s, "/api/ota/install", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject b) {
     const char* url;
@@ -652,7 +679,7 @@ void registerRoutes(AsyncWebServer& s) {
     if (!*url && !ota::progress().has_manifest) return sendErr(r, 409, "check for an update first");
     std::string err;
     if (!app::requestOtaInstall(url, err)) return sendErr(r, 400, err.empty() ? "cannot install" : err.c_str());
-    sendQueued(r);
+    sendQueued(r, app::jobs().ota.seq);
   });
   s.on("/api/ota/progress", HTTP_GET, handleOtaProgress);
   onJson(s, "/api/reboot", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject) {

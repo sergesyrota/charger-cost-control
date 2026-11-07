@@ -60,17 +60,19 @@ bool overrideExpired(const Override& o, bool clock_valid, int64_t now) {
   return clock_valid && o.until != 0 && now >= o.until;
 }
 
-const ScheduleWindow* activeWindow(const Config& cfg, const ChicagoTime& now) {
+namespace {
+bool windowActive(const ScheduleWindow& w, const ChicagoTime& now) {
   const uint16_t m = now.minuteOfDay();
   const uint8_t today = 1u << (now.wday % 7), yesterday = 1u << ((now.wday + 6) % 7);
-  for (uint8_t i = 0; i < cfg.window_count && i < kMaxWindows; i++) {
-    const ScheduleWindow& w = cfg.windows[i];
-    if (w.start_min < w.end_min) {
-      if ((w.days & today) && m >= w.start_min && m < w.end_min) return &w;
-    } else if (w.start_min > w.end_min) {
-      if (((w.days & today) && m >= w.start_min) || ((w.days & yesterday) && m < w.end_min)) return &w;
-    }
-  }
+  if (w.start_min < w.end_min) return (w.days & today) && m >= w.start_min && m < w.end_min;
+  if (w.start_min > w.end_min) return ((w.days & today) && m >= w.start_min) || ((w.days & yesterday) && m < w.end_min);
+  return false;
+}
+}  // namespace
+
+const ScheduleWindow* activeWindow(const Config& cfg, const ChicagoTime& now) {
+  for (uint8_t i = 0; i < cfg.window_count && i < kMaxWindows; i++)
+    if (windowActive(cfg.windows[i], now)) return &cfg.windows[i];
   return nullptr;
 }
 
@@ -92,6 +94,12 @@ StatePick pickState(const LogicConfig& cfg, float soc, const char* sticky_state)
       p.how = StateHow::Sticky;
       st = cfg.find(sticky_state ? sticky_state : "default");
       p.name = sticky_state ? sticky_state : "default";
+      // Sticky name doesn't exist (fresh device: "default"; or the state was renamed/removed) and
+      // there's no states.default to fall back to: use the first state that has charging bands
+      // instead of holding the relay at default until SOC crosses an entry threshold.
+      if (!st && !cfg.find("default"))
+        for (const State& s : cfg.states)
+          if (!s.blocks.empty()) { st = &s; break; }
     }
   }
   p.state = st;
@@ -136,8 +144,8 @@ Decision decide(const DecisionInput& in) {
     return d;
   }
 
-  // 2. Overlays (SOC known only).
-  if (!isnan(in.soc)) {
+  // 2. Overlays (SOC known and fresh only: a stale 100% must not lock charging out).
+  if (!isnan(in.soc) && in.soc_fresh) {
     if (lroundf(in.soc) >= 100) {
       const uint32_t hold = cfg.full_hold_min;
       const bool held = hold == 0 || !in.clock_valid || in.full_since == 0 ||
@@ -160,18 +168,39 @@ Decision decide(const DecisionInput& in) {
   // 3. Schedule.
   if (mode == Mode::Schedule || mode == Mode::SchedulePrice) {
     if (!in.clock_valid) { setDefault(d, in, "Clock not set yet, schedule can’t run"); return d; }
-    if (const ScheduleWindow* w = activeWindow(cfg, in.now)) {
+    // An uncapped active window, or a capped one with a known price <= cap, forces ON. A capped
+    // window over its cap (or with unknown price) behaves like "outside the windows".
+    const ScheduleWindow* capped = nullptr;
+    for (uint8_t i = 0; i < cfg.window_count && i < kMaxWindows; i++) {
+      const ScheduleWindow& w = cfg.windows[i];
+      if (!windowActive(w, in.now)) continue;
+      const bool has_cap = !isnan(w.max_price);
+      if (has_cap && (isnan(in.price) || in.price > w.max_price)) {
+        if (!capped) capped = &w;
+        continue;
+      }
       char wt[64];
-      windowText(wt, sizeof wt, *w);
+      windowText(wt, sizeof wt, w);
       d.relay = true;
       d.src = DecisionSrc::Schedule;
-      snprintf(d.reason, sizeof d.reason, "Inside schedule window %s", wt);
+      d.price = in.price;
+      if (has_cap)
+        snprintf(d.reason, sizeof d.reason, "Inside schedule window %s (%s ≤ %s cap)", wt, C(in.price).s,
+                 C(w.max_price).s);
+      else
+        snprintf(d.reason, sizeof d.reason, "Inside schedule window %s", wt);
       return d;
     }
     if (mode == Mode::Schedule) {
       d.relay = false;
       d.src = DecisionSrc::Schedule;
-      copy(d.reason, sizeof d.reason, "Outside schedule windows (schedule only)");
+      if (capped && isnan(in.price))
+        snprintf(d.reason, sizeof d.reason, "Schedule window capped at %s, price unknown", C(capped->max_price).s);
+      else if (capped)
+        snprintf(d.reason, sizeof d.reason, "Schedule window price cap exceeded (%s > %s)", C(in.price).s,
+                 C(capped->max_price).s);
+      else
+        copy(d.reason, sizeof d.reason, "Outside schedule windows (schedule only)");
       return d;
     }
   }
@@ -184,7 +213,8 @@ Decision decide(const DecisionInput& in) {
   const float soc = isnan(in.soc) ? 0.0f : in.soc;
   StatePick p = pickState(*in.logic, soc, in.sticky_state);
   // New sticky state: changes only when a state was entered or forced (PHP setCache).
-  if (p.how == StateHow::Entered || p.how == StateHow::Forced) copy(d.state, sizeof d.state, p.name.c_str());
+  // (A sticky name that didn't exist and was resolved to a real state is persisted too.)
+  if (p.state) copy(d.state, sizeof d.state, p.name.c_str());
   if (p.block_index < 0) {
     char why[120];
     snprintf(why, sizeof why, "State “%s” has no charging bands", p.name.c_str());
@@ -198,6 +228,7 @@ Decision decide(const DecisionInput& in) {
   d.src = DecisionSrc::Price;
   d.how = p.how;
   d.block_index = (int8_t)p.block_index;
+  d.block_soc = b.soc;
   d.logic_fallback = p.fallback;
   d.price = in.price;
   d.price_on = on;

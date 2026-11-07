@@ -47,7 +47,9 @@ PriceSnapshot s_prices;  // app copy of prices::snapshot() + derived fields (web
 Jobs s_jobs;
 int64_t s_full_since = 0;
 
-// boot: suppress the notification for the first transition that only restores the pre-reboot relay
+// boot: the first real (non-default) decision continues from the pre-reboot relay (hysteresis) and
+// a decision that only restores it is not notified. Limited to kBootQuietMs and non-manual changes.
+constexpr uint32_t kBootQuietMs = 15u * 60u * 1000u;
 bool s_boot_restore = true;
 bool s_boot_relay = false;
 
@@ -69,7 +71,11 @@ uint32_t s_reboot_at = 0;  // millis, 0 = none
 
 // scheduler (millis)
 uint32_t s_next_poll = 30000;  // first car poll ~30 s after boot (SOC for the UI)
-bool s_probe = false;          // next poll is the post-ON probe
+bool s_probe = false;          // next poll is the post-ON probe (due at s_next_poll)
+uint32_t s_probe_gen = 0;      // bumped on every ON transition (probe armed)
+uint32_t s_wifi_wait = 0;      // millis deadline of a pending Wi-Fi join job (0 = none)
+char s_wifi_wait_ssid[33] = "";
+constexpr int64_t kSocFreshS = 12 * 3600;  // overlays ignore a SOC older than this
 uint32_t s_last_min = 0, s_last_heap = 0;
 uint32_t s_extras_day = 0;
 bool s_clock_seen = false;
@@ -90,6 +96,12 @@ void jobDone(Job& j, bool ok, const char* err) {
   j.state = ok ? JobState::Ok : JobState::Error;
   strlcpy(j.error, ok ? "" : (err ? err : "failed"), sizeof(j.error));
   j.finished_at = jobTime();
+}
+
+void jobQueued(Job& j) {  // under s_mx
+  j.state = JobState::Queued;
+  j.error[0] = 0;
+  j.seq++;
 }
 
 void jobRunning(Job& j) {
@@ -141,6 +153,8 @@ void evaluate(bool manual) {
     s_rt.ovr = Override();
   }
   float soc = !isnan(s_car.soc) ? s_car.soc : s_rt.last_soc;
+  int64_t soc_at = !isnan(s_car.soc) ? s_car.soc_at : s_rt.last_soc_at;
+  bool soc_fresh = s_car.soc_live || (clk && soc_at > 0 && now - soc_at <= kSocFreshS);
   if (!isnan(soc) && lroundf(soc) >= 100) {
     if (!s_full_since && clk) s_full_since = now;
   } else {
@@ -156,7 +170,12 @@ void evaluate(bool manual) {
   in.price = s_prices.current;
   in.min_price = s_prices.min_price;
   in.soc = soc;
-  in.relay_now = relay::get();
+  in.soc_fresh = soc_fresh;
+  const bool prev = relay::get();
+  bool boot = s_boot_restore;
+  if (boot && (manual || millis() > kBootQuietMs)) boot = s_boot_restore = false;
+  const bool was = boot ? s_boot_relay : prev;  // logical relay before this decision (hysteresis)
+  in.relay_now = was;
   in.sticky_state = s_rt.charging_state;
   in.full_since = s_full_since;
   Decision d = logic::decide(in);
@@ -167,35 +186,43 @@ void evaluate(bool manual) {
     strlcpy(s_rt.charging_state, d.state, sizeof(s_rt.charging_state));
   }
 
-  bool prev = relay::get();
-  bool is_manual = manual || d.src == DecisionSrc::Manual;
-  if (d.relay != prev) {
+  const bool is_manual = manual || d.src == DecisionSrc::Manual;
+  const bool pin_change = d.relay != prev;
+  if (pin_change) {
     relay::set(d.relay);
     s_rt.relay_cmd = d.relay;
-    bool quiet = s_boot_restore && d.relay == s_boot_relay;
+    s_stats_due = true;
+  }
+  if (boot && d.src == DecisionSrc::Default) {
+    // still nothing known after boot: wait for a real decision before judging transitions
+    if (pin_change) evlog::add(evlog::Kind::Relay, "%s: %s (start-up, not notified)", d.relay ? "ON" : "OFF", d.reason);
+  } else if (d.relay != was) {  // a real transition (vs. the pre-reboot relay while booting)
     s_boot_restore = false;
     evlog::add(evlog::Kind::Relay, "%s%s: %s%s", is_manual ? "Manual: " : "", d.relay ? "ON" : "OFF", d.reason,
-               quiet ? " (restored after reboot, not notified)" : "");
+               pin_change ? "" : " (after reboot)");
     if (d.relay) {
       // ON message waits for the post-ON probe (§8.5/§10)
-      s_on_pending = !quiet;
+      s_on_pending = true;
       s_on_dec = d;
       s_on_manual = is_manual;
       s_probe = true;
+      s_probe_gen++;
       s_next_poll = millis() + (uint32_t)s_cfg.probe_delay_s * 1000u;
     } else {
       if (s_on_pending) sendOnMessage();  // flapped before the probe: still report the ON
-      if (!quiet) {
-        char msg[320];
-        pushover::formatOff(d, is_manual, s_car, now, msg, sizeof(msg));
-        queuePush(msg);
-      }
+      char msg[320];
+      pushover::formatOff(d, is_manual, s_car, now, msg, sizeof(msg));
+      queuePush(msg);
       s_probe = false;
       s_next_poll = millis() + (uint32_t)s_cfg.poll_off_min * 60000u;
     }
-    s_stats_due = true;
-  } else if (d.src != DecisionSrc::Default) {
-    s_boot_restore = false;  // a real decision agreed with the current relay
+  } else {
+    if (boot) s_boot_restore = false;  // first real decision agrees with the pre-reboot relay
+    if (pin_change) {                  // ... and restores it: log, don't notify
+      evlog::add(evlog::Kind::Relay, "%s: %s (restored after reboot, not notified)", d.relay ? "ON" : "OFF", d.reason);
+      s_probe = false;
+      s_next_poll = millis() + (d.relay ? (uint32_t)s_cfg.probe_delay_s * 1000u : (uint32_t)s_cfg.poll_off_min * 60000u);
+    }
   }
   statestore::save(s_rt);
 }
@@ -220,22 +247,28 @@ void refreshPrices(const ChicagoTime& ct, bool copy_raw) {
   price::derive(s_prices, ct, s_cfg.stale_min, s_cfg.min_offset);
 }
 
-void logPriceError() {
-  const char* e = prices::lastError();
-  if (strcmp(e, s_price_err) == 0) return;
+void logPriceError() {  // loop task (the only writer of prices::lastError())
+  char e[sizeof(s_price_err)];
+  strlcpy(e, prices::lastError(), sizeof(e));
+  {
+    Lock l;
+    if (strcmp(e, s_price_err) == 0) return;
+    strlcpy(s_price_err, e, sizeof(s_price_err));
+  }
   if (*e) evlog::add(evlog::Kind::Price, "Price fetch failed: %s", e);
   else evlog::add(evlog::Kind::Price, "Price fetch OK");
-  strlcpy(s_price_err, e, sizeof(s_price_err));
 }
 
 void doCarPoll(bool user) {
   carlink::PollOpts o;
   CarSnapshot c;
   bool probe;
+  uint32_t gen;
   {
     Lock l;
     c = s_car;
-    probe = s_probe;
+    probe = s_probe && due(s_next_poll);  // a user poll before the probe delay is not the probe
+    gen = s_probe_gen;
     o.threshold_w = s_cfg.charge_threshold_w;
     o.power_sign = s_cfg.power_sign;
   }
@@ -254,10 +287,14 @@ void doCarPoll(bool user) {
       s_rt.last_soc = c.soc;
       s_rt.last_soc_at = c.soc_at;
     }
-    bool on = relay::get();
-    s_next_poll = millis() + (on ? (uint32_t)s_cfg.poll_on_s * 1000u : (uint32_t)s_cfg.poll_off_min * 60000u);
-    s_probe = false;
-    if (probe) sendOnMessage();
+    // A probe this poll didn't serve (armed by an ON during the poll, or not yet due) keeps the
+    // s_probe / s_next_poll that evaluate() set.
+    if (!(s_probe && !(probe && s_probe_gen == gen))) {
+      bool on = relay::get();
+      s_next_poll = millis() + (on ? (uint32_t)s_cfg.poll_on_s * 1000u : (uint32_t)s_cfg.poll_off_min * 60000u);
+      s_probe = false;
+      if (probe) sendOnMessage();
+    }
   }
   if (c.status != s_last_car_status) {
     if (isnan(c.soc))
@@ -288,10 +325,8 @@ void sampleStats() {
 
 void flushAll() {
   stats::flush();
-  {
-    Lock l;
-    statestore::save(s_rt);
-  }
+  Lock l;  // statestore is not thread-safe: web handlers save() under the same lock
+  statestore::save(s_rt);
   statestore::flush();
 }
 
@@ -347,7 +382,24 @@ void runJobs() {
     wifi::setCredentials(ssid, pass);
     memset(pass, 0, sizeof(pass));
     evlog::add(evlog::Kind::Sys, ssid[0] ? "Wi-Fi credentials saved for \"%s\"" : "Wi-Fi credentials cleared%s", ssid);
+    if (!ssid[0]) {
+      jobDone(s_jobs.wifi, true, nullptr);
+    } else {  // finished by checkWifiJob() once STA gets an IP (or times out)
+      strlcpy(s_wifi_wait_ssid, ssid, sizeof(s_wifi_wait_ssid));
+      s_wifi_wait = millis() + 45000;
+      if (!s_wifi_wait) s_wifi_wait = 1;
+    }
+  }
+}
+
+void checkWifiJob() {
+  if (!s_wifi_wait) return;
+  if (wifi::staConnected() && wifi::ssid() == s_wifi_wait_ssid) {
+    s_wifi_wait = 0;
     jobDone(s_jobs.wifi, true, nullptr);
+  } else if (due(s_wifi_wait)) {
+    s_wifi_wait = 0;
+    jobDone(s_jobs.wifi, false, "could not connect (check the password); still retrying");
   }
 }
 
@@ -383,7 +435,11 @@ void logHeap() {
 
 // ================================================================ setup / loop
 void setup() {
-  relay::begin(true, false);  // FIRST: factory default OFF, active-high (corrected after config load)
+  {
+    Config boot;  // FIRST: drive the configured default level/polarity (NVS read only, a few ms)
+    cfgstore::peekConfig(boot);
+    relay::begin(boot.relay_active_high, boot.default_relay);
+  }
   Serial.begin(115200);
   s_mx = xSemaphoreCreateRecursiveMutex();
   strlcpy(s_reset, resetName(esp_reset_reason()), sizeof(s_reset));
@@ -420,7 +476,7 @@ void setup() {
   logHeap();
 
   esp_task_wdt_config_t wc = {};
-  wc.timeout_ms = 30000;
+  wc.timeout_ms = 60000;  // > worst-case unfed blocking step (HTTPS connect+handshake+headers, BLE)
   wc.idle_core_mask = 0;
   wc.trigger_panic = true;
   if (esp_task_wdt_reconfigure(&wc) != ESP_OK) esp_task_wdt_init(&wc);
@@ -488,6 +544,7 @@ void loop() {
 
   pushover::loop();
   runJobs();
+  checkWifiJob();
   healthCheck();
 
   if (s_reboot_at && due(s_reboot_at)) {
@@ -535,6 +592,10 @@ void withLogic(const std::function<void(const logic::LogicConfig&)>& fn) {
   fn(s_logic);
 }
 const char* resetReason() { return s_reset; }
+void priceError(char* out, size_t n) {
+  Lock l;
+  strlcpy(out, s_price_err, n);
+}
 const char* jobStateName(JobState s) {
   static const char* const n[] = {"idle", "queued", "running", "ok", "error"};
   return n[(int)s];
@@ -584,14 +645,14 @@ bool saveLogic(const logic::LogicConfig& lc, std::string& err) {
 void requestCarPoll() {
   Lock l;
   s_poll_req = true;
-  s_jobs.car_poll.state = JobState::Queued;
+  jobQueued(s_jobs.car_poll);
 }
 
 bool requestPushoverTest(std::string& err) {
   Lock l;
   if (!s_cfg.pushover_token[0] || !s_cfg.pushover_user[0]) return err = "pushover token/user not set", false;
   s_push_req = true;
-  s_jobs.push_test.state = JobState::Queued;
+  jobQueued(s_jobs.push_test);
   return true;
 }
 
@@ -602,7 +663,7 @@ bool requestOtaCheck(const char* url, std::string& err) {
   if (strlen(u) >= sizeof(s_ota_url)) return err = "URL too long", false;
   strlcpy(s_ota_url, u, sizeof(s_ota_url));
   s_ota_check_req = true;
-  s_jobs.ota.state = JobState::Queued;
+  jobQueued(s_jobs.ota);
   return true;
 }
 
@@ -614,7 +675,7 @@ bool requestOtaInstall(const char* url, std::string& err) {
   if (!*u && !ota::progress().has_manifest) return err = "check for an update first", false;
   strlcpy(s_ota_url, u, sizeof(s_ota_url));
   s_ota_install_req = true;
-  s_jobs.ota.state = JobState::Queued;
+  jobQueued(s_jobs.ota);
   return true;
 }
 
@@ -629,7 +690,8 @@ void requestWifi(const char* ssid, const char* password) {
   strlcpy(s_wifi_ssid, ssid ? ssid : "", sizeof(s_wifi_ssid));
   strlcpy(s_wifi_pass, password ? password : "", sizeof(s_wifi_pass));
   s_wifi_req = true;
-  s_jobs.wifi.state = JobState::Queued;
+  s_wifi_wait = 0;
+  jobQueued(s_jobs.wifi);
 }
 
 }  // namespace app

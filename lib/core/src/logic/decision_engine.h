@@ -5,9 +5,10 @@
 //  1. Manual ON/OFF (Override.mode). Overlays do NOT apply to Manual ON.
 //  2. Overlays (auto / schedule / schedule_price): Full (round(soc) >= 100, held full_hold_min) -> OFF
 //     "Bolt is full"; SOC target (enabled && soc >= target) -> OFF "SOC target 80% reached".
-//     Overlays only when SOC is known (not NAN).
+//     Overlays only when SOC is known (not NAN) and fresh (soc_fresh).
 //  3. Schedule (schedule / schedule_price): needs clock; inside a window -> ON. Outside:
-//     schedule -> OFF; schedule_price -> fall through to price.
+//     schedule -> OFF; schedule_price -> fall through to price. A window with max_price forces ON
+//     only while the price is known and <= max_price; otherwise it counts as "outside".
 //  4. Price logic: needs clock + known price; else Default.
 //  5. Default: cfg.default_relay with reason "<why> → relay held at default (OFF)".
 // Reason strings follow the prototype decide() and PLAN §10 ("Price is low (1.2¢ ≤ 2¢)",
@@ -29,17 +30,19 @@ struct DecisionInput {
   float price = NAN;             // PriceSnapshot.current (staleness already applied); NAN = unknown
   float min_price = NAN;         // PriceSnapshot.min_price; NAN = "min" unavailable
   float soc = NAN;               // last known SOC; NAN = never known (logic uses 0, overlays skip)
+  bool soc_fresh = true;         // false => SOC is old (car not read recently): overlays skip it
   bool relay_now = false;        // currently commanded relay
   const char* sticky_state = "default";
   int64_t full_since = 0;        // epoch SOC first reached 100 (0 = not full); for full_hold_min
 };
 
-// Pure evaluation. Decision.state holds the state to persist as the new sticky state (changes only
-// when a state was "entered" or forced; otherwise equals sticky_state). Decision.at = now.epoch or 0.
+// Pure evaluation. Decision.state holds the state to persist as the new sticky state (changes when a
+// state was "entered" or forced, or when a nonexistent sticky name was resolved; else = sticky_state). Decision.at = now.epoch or 0.
 Decision decide(const DecisionInput& in);
 
 // State selection only (state_select -> forced; else first state whose non-empty conditions all hold
-// -> entered; else sticky). Exposed for the UI/tests.
+// -> entered; else sticky; a sticky name that doesn't exist, with no states.default, resolves to the
+// first state that has blocks). Exposed for the UI/tests.
 struct StatePick {
   const State* state = nullptr;      // nullptr if the chosen name doesn't exist
   std::string name;

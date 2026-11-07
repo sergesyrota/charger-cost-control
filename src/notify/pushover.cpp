@@ -14,7 +14,11 @@
 namespace pushover {
 
 static const char* kUrl = "https://api.pushover.net/1/messages.json";
-static constexpr uint32_t kRetryMs = 60000;
+// Retries after a real send failure (HTTP/TLS): 1, 5, 15 min, then dropped. "No network",
+// "clock not set" and "network busy" don't count: the message waits until it can be tried.
+static constexpr uint32_t kRetryMs[] = {60000, 300000, 900000};
+static constexpr uint8_t kMaxTries = sizeof(kRetryMs) / sizeof(kRetryMs[0]);
+static constexpr uint32_t kWaitMs = 30000;
 static constexpr size_t kMsgMax = 300;
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -23,7 +27,7 @@ static char s_token[40] = "", s_user[40] = "", s_device[32] = "";
 
 struct Slot {
   bool used = false;
-  bool retried = false;
+  uint8_t tries = 0;          // failed real attempts
   uint32_t seq = 0;
   uint32_t due_ms = 0;
   char msg[kMsgMax] = "";
@@ -62,7 +66,7 @@ bool queue(const char* msg) {
   }
   Slot& s = s_q[0].used ? s_q[1] : s_q[0];
   s.used = true;
-  s.retried = false;
+  s.tries = 0;
   s.seq = ++s_seq;
   s.due_ms = millis();
   copyStr(s.msg, sizeof(s.msg), msg);
@@ -160,18 +164,23 @@ void loop() {
   bool ok = sendNow(job.msg, err, sizeof(err));
   bool configured = ready();
 
-  bool retry = false;
+  const bool waiting = !ok && (strcmp(err, "no network") == 0 || strcmp(err, "clock not set") == 0 ||
+                                strcmp(err, "network busy") == 0);
+  uint32_t retry_ms = 0;
   portENTER_CRITICAL(&s_mux);
   // queue() may have shifted/dropped slots while we were sending: find ours by sequence number.
   for (int i = 0; i < 2; i++) {
     Slot& s = s_q[i];
     if (!s.used || s.seq != job.seq) continue;
-    if (ok || job.retried || !configured) {
+    if (ok || !configured || (!waiting && job.tries >= kMaxTries)) {
       s.used = false;
+    } else if (waiting) {
+      s.due_ms = millis() + kWaitMs;
+      retry_ms = kWaitMs;
     } else {
-      s.retried = true;
-      s.due_ms = millis() + kRetryMs;
-      retry = true;
+      retry_ms = kRetryMs[s.tries];
+      s.tries++;
+      s.due_ms = millis() + retry_ms;
     }
   }
   if (!s_q[0].used && s_q[1].used) {
@@ -181,7 +190,9 @@ void loop() {
   portEXIT_CRITICAL(&s_mux);
 
   if (ok) evlog::add(evlog::Kind::Push, "Sent: %s", job.msg);
-  else evlog::add(evlog::Kind::Err, "Pushover failed (%s)%s", err, retry ? ", retry in 60 s" : ", dropped");
+  else if (waiting) return;  // quiet: re-tried every 30 s until the network/clock is back
+  else if (retry_ms) evlog::add(evlog::Kind::Err, "Pushover failed (%s), retry in %u min", err, (unsigned)(retry_ms / 60000));
+  else evlog::add(evlog::Kind::Err, "Pushover failed (%s), dropped", err);
 }
 
 // ---------------------------------------------------------------- formatting
@@ -224,7 +235,10 @@ void formatOn(const Decision& d, bool manual, const CarSnapshot& car, char* out,
   Out o{out, cap, 0};
   o.add("%sON: ", manual ? "Manual: " : "");
   addReason(o, d);
-  if (d.src == DecisionSrc::Price && d.state[0]) o.add(" — Bolt/%s", d.state);
+  if (d.src == DecisionSrc::Price && d.state[0]) {
+    o.add(" — Bolt/%s", d.state);
+    if (!isnan(d.block_soc)) o.add(" soc≥%g", (double)d.block_soc);
+  }
   o.add(". ");
   bool soc = !isnan(car.soc) && car.soc_live;
   switch (car.status) {

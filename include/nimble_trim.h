@@ -16,3 +16,9 @@
 #undef CONFIG_BT_NIMBLE_SM_SC
 #undef CONFIG_BT_NIMBLE_MAX_CONNECTIONS
 #define CONFIG_BT_NIMBLE_MAX_CONNECTIONS 1
+// nimconfig.h re-#defines CONFIG_BT_NIMBLE_SM_* / NVS_PERSIST to 1 after this file, so the #undefs
+// above don't reach NimBLE. esp_nimble_cfg.h guards the MYNEWT_VAL_* with #ifndef: set them here.
+// (No pairing / bonding: ~30 KB.) After editing this file: `pio run -e c3 -t clean`.
+#define MYNEWT_VAL_BLE_SM_LEGACY (0)
+#define MYNEWT_VAL_BLE_SM_SC (0)
+#define MYNEWT_VAL_BLE_STORE_CONFIG_PERSIST (0)

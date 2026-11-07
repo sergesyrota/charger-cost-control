@@ -33,14 +33,19 @@ HTML/JS file `web/index.html` (design: `prototypes/option-5-app.html`), gzipped 
   evaluates synchronously — pure decide + GPIO + NVS — so the API reply shows the new relay state).
 - `app.cpp` is a cooperative scheduler: wifi -> prices::tick (one fetch max) -> derive/decide on
   fetch, config change and every 60 s -> car poll cadence (post-ON probe, poll_on_s / poll_off_min)
-  -> stats -> pushover -> queued jobs -> OTA health check. Task watchdog 30 s on the loop task; long
-  waits in car_link / https_client call `wdtFeed()` (`src/app/wdt.h`).
+  -> stats -> pushover -> queued jobs -> OTA health check. Task watchdog 60 s on the loop task; long
+  waits in car_link / https_client call `wdtFeed()` (`src/app/wdt.h`); https caps connect, TLS
+  handshake and header wait at 15 s each.
 - BLE is initialised **only for the duration of a car poll** (`carlink::end()` after each poll):
   keeping NimBLE up leaves too little heap for TLS.
 - Wi-Fi credentials live in NVS namespace `"wifi"` (wifi_mgr); config/logic/state in `"cc"`.
   Captive DNS is owned by wifi_mgr (web::loop does nothing).
 - `include/nimble_trim.h` is force-included (`-include`) to compile out NimBLE peripheral/broadcaster
-  roles and the security manager (sdkconfig enables them; `-D` flags can't override).
+  roles and the security manager/bond store (via `MYNEWT_VAL_*`). PIO doesn't track it: after editing
+  it run `.venv/bin/pio run -e c3 -t clean`.
+- Size levers in `platformio.ini`: `-fno-exceptions` (never use try/catch), project board variant
+  `variants/supermini` (no RGB_BUILTIN → no RMT), linker `--wrap`s in `src/size_wraps.c` (error names
+  print as numeric codes).
 - `tools/version.py` (FW_VERSION from `git describe`), `tools/build_ui.py` (light minify + gzip,
   UI ≈ 33 KB gz) — pre-build hooks. `tools/make_release.py` writes `dist/` (gitignored).
 
@@ -71,7 +76,7 @@ PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it glob
 - Hotspot runs only when there are no Wi-Fi credentials or STA has been down for 5 min; never
   alongside a working STA connection.
 - OTA default manifest: `https://github.com/sergesyrota/charger-cost-control/releases/latest/download/manifest.json`.
-- Keep the image lean: `firmware.bin` is 1.79 MB = 94 % of the 1.81 MB app slot (partitions.csv,
+- Keep the image lean: `firmware.bin` is 1.63 MB = 85.6 % of the 1.81 MB app slot (partitions.csv,
   no coredump partition). Check the real .bin size, not PlatformIO's "Flash:" line. No
   std::regex/iostream, no new libraries without asking. Tests are sparse: only high-value
   pure-logic cases.

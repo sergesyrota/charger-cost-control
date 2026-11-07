@@ -35,6 +35,7 @@ bool relayOn();
 bool clockValid();
 void withPrices(const std::function<void(const PriceSnapshot&)>& fn);    // under lock; keep fn short
 void withLogic(const std::function<void(const logic::LogicConfig&)>& fn);
+void priceError(char* out, size_t n);   // last price-fetch error ("" = OK), copied under lock
 const char* resetReason();       // human text, e.g. "Power-on", "Software reset", "Task watchdog"
 
 enum class JobState : uint8_t { Idle, Queued, Running, Ok, Error };
@@ -43,6 +44,7 @@ struct Job {
   JobState state = JobState::Idle;
   char error[80] = "";
   int64_t finished_at = 0;              // epoch (0 if no clock); uptime used otherwise
+  uint16_t seq = 0;                     // bumped each time the job is queued (UI freshness check)
 };
 struct Jobs {
   Job car_poll, push_test, ota, wifi;

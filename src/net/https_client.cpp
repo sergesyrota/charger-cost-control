@@ -24,6 +24,9 @@ namespace https {
 namespace {
 
 constexpr int kMaxRedirects = 5;
+// Each unfed blocking phase (TCP connect, TLS handshake, header wait / per-read) is capped so their
+// sum stays well under the loop task's 60 s watchdog (app.cpp). The body stream feeds the WDT.
+constexpr uint32_t kPhaseCapMs = 15000;
 
 // Write-only Stream that forwards to the body callback; returns 0 on abort so writeToStream stops.
 class CbSink : public Stream {
@@ -117,12 +120,14 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
     // Heap-allocated: keeps the loop task's stack small (TLS handshake needs it).
     std::unique_ptr<NetworkClientSecure> client(new NetworkClientSecure());
     client->useBuiltinCACertBundle();
-    client->setTimeout((timeout_ms + 999) / 1000);
+    const uint32_t phase_ms = timeout_ms < kPhaseCapMs ? timeout_ms : kPhaseCapMs;
+    client->setTimeout((phase_ms + 999) / 1000);
+    client->setHandshakeTimeout((phase_ms + 999) / 1000);  // library default is 120 s
     std::unique_ptr<HTTPClient> http(new HTTPClient());
     http->setReuse(false);
     http->setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    http->setConnectTimeout(timeout_ms);
-    http->setTimeout(timeout_ms > 65535 ? 65535 : (uint16_t)timeout_ms);
+    http->setConnectTimeout(phase_ms);
+    http->setTimeout((uint16_t)phase_ms);
     http->setUserAgent("ChargerControl/" FW_VERSION);
     if (!http->begin(*client, cur)) {
       r.status = -1;
@@ -137,6 +142,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
     } else {
       code = http->GET();
     }
+    wdtFeed();
     if (code <= 0) {
       http->end();
       logHeap("after", cur.c_str());

@@ -41,6 +41,7 @@ static void test_secrets_write_only() {
   c.windows[0].days = 0x3E;
   c.windows[0].start_min = 60;
   c.windows[0].end_min = 300;
+  c.windows[0].max_price = 3;
   strcpy(c.pushover_token, "tok123");
   std::string st = cfgjson::toStorage(c);
   Config d;
@@ -48,6 +49,7 @@ static void test_secrets_write_only() {
   TEST_ASSERT_EQUAL_STRING("tok123", d.pushover_token);
   TEST_ASSERT_EQUAL(0x3E, d.windows[0].days);
   TEST_ASSERT_EQUAL(300, d.windows[0].end_min);
+  TEST_ASSERT_EQUAL_FLOAT(3, d.windows[0].max_price);
 }
 
 static void test_records() {

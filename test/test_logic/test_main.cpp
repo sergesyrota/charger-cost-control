@@ -197,6 +197,44 @@ static void test_schedule_overnight() {
   TEST_ASSERT_EQUAL((int)DecisionSrc::Default, (int)decide(in).src);
 }
 
+// PLAN §7.1 item 2: a capped window forces ON only while the known price is <= cap.
+static void test_schedule_price_cap() {
+  g_cfg.window_count = 1;
+  g_cfg.windows[0] = {0x7f, 22 * 60, 23 * 60};   // every day 22:00–23:00, cap 3¢
+  g_cfg.windows[0].max_price = 3;
+  DecisionInput in;
+  in.cfg = &g_cfg;
+  in.logic = &g_ref;
+  in.clock_valid = true;
+  in.now = at();                                  // 22:35
+  in.ovr.mode = Mode::Schedule;
+  in.sticky_state = ZAR;
+  in.soc = 50;
+  in.price = 3;                                   // at the cap -> ON
+  Decision d = decide(in);
+  TEST_ASSERT_TRUE(d.relay);
+  TEST_ASSERT_EQUAL_STRING("Inside schedule window Every day 22:00–23:00 (3¢ ≤ 3¢ cap)", d.reason);
+  in.price = 3.4f;                                // above: schedule only -> OFF
+  d = decide(in);
+  TEST_ASSERT_FALSE(d.relay);
+  TEST_ASSERT_EQUAL_STRING("Schedule window price cap exceeded (3.4¢ > 3¢)", d.reason);
+  in.ovr.mode = Mode::SchedulePrice;              // above: price logic decides (Заряд@50: on 0¢)
+  TEST_ASSERT_EQUAL((int)DecisionSrc::Price, (int)decide(in).src);
+  in.price = NAN;                                 // unknown price counts as over the cap
+  in.ovr.mode = Mode::Schedule;
+  d = decide(in);
+  TEST_ASSERT_FALSE(d.relay);
+  TEST_ASSERT_EQUAL_STRING("Schedule window capped at 3¢, price unknown", d.reason);
+}
+
+// Fresh device: sticky "default" doesn't exist in the reference logic; SOC 21–79 must still charge.
+static void test_missing_sticky_resolves() {
+  Decision d = run(-1, 50, false, "default");     // first state with bands = Разряд, block soc 20 (on −0.5)
+  TEST_ASSERT_TRUE(d.relay);
+  TEST_ASSERT_EQUAL_STRING(RAZ, d.state);         // persisted so it stays sticky
+  TEST_ASSERT_EQUAL_FLOAT(20, d.block_soc);
+}
+
 static void test_validation_errors() {
   const char* j = R"({"state_select":"nope","states":{"Заряд":{"entry_conditions":[{"type":"soc","operator":"=>","value":120}],
     "charging_logic":[{"soc":10,"price_on":"max","price_off":1,"known_minutes":60}]}}})";
@@ -217,6 +255,8 @@ int main(int, char**) {
   RUN_TEST(test_transitions);
   RUN_TEST(test_precedence_and_default);
   RUN_TEST(test_schedule_overnight);
+  RUN_TEST(test_schedule_price_cap);
+  RUN_TEST(test_missing_sticky_resolves);
   RUN_TEST(test_validation_errors);
   return UNITY_END();
 }

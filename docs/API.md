@@ -5,14 +5,15 @@ Ownership map and module rules: [`docs/MODULES.md`](MODULES.md). Owners: **web_a
 
 ## Conventions
 
-- JSON, UTF-8 (state names may be Cyrillic). `Content-Type: application/json`.
+- JSON, UTF-8 (state names may be Cyrillic). `Content-Type: application/json` — **required** on every
+  PUT/POST (else 415), and a browser `Origin` header must match `Host` (CSRF guard; no auth).
 - Times are **UTC epoch seconds**; `null` when unknown (no clock). The UI renders Chicago time using
   `tz_offset_s` from `/api/status` (not the browser zone).
 - Prices: supply-only **¢/kWh**, one decimal. Unknown numbers are `null` (C++ `NAN`).
 - Errors: 4xx/5xx with `{"error": "human message"}`; validation errors may add `"errors": ["…"]`.
   400 bad input · 404 unknown route · 409 busy/conflict · 503 needs clock/not ready.
-- Async actions return **202** `{"queued": true}`; progress/results appear in `GET /api/status`
-  (`jobs`) or the dedicated progress endpoint. UI polls `/api/status` every ~5 s (1 s while a job runs).
+- Async actions return **202** `{"queued": true, "seq": 7}`; progress/results appear in `GET /api/status`
+  (`jobs`; a finished job whose `seq` ≥ the 202's `seq` is the result of that request) or the dedicated progress endpoint. UI polls `/api/status` every ~5 s (1 s while a job runs).
 - **Secrets are write-only**: never in any response. Responses only carry `*_set` booleans. On PUT, an
   empty string / `null` / omitted secret keeps the stored value; `"<name>_clear": true` erases it.
 - Large lists (stats, log) are sent with chunked transfer encoding; the body is still one JSON array.
@@ -107,10 +108,10 @@ Everything the Home screen, mode sheet, price sheet and Diagnostics need.
   },
 
   "jobs": {                        // state: idle | queued | running | ok | error
-    "car_poll":  {"state": "idle", "error": "", "at": null},
-    "push_test": {"state": "ok",   "error": "", "at": 1794089600},
-    "ota":       {"state": "idle", "error": "", "at": null},
-    "wifi":      {"state": "idle", "error": "", "at": null}
+    "car_poll":  {"state": "idle", "error": "", "at": null, "seq": 0},
+    "push_test": {"state": "ok",   "error": "", "at": 1794089600, "seq": 1},
+    "ota":       {"state": "idle", "error": "", "at": null, "seq": 0},
+    "wifi":      {"state": "idle", "error": "", "at": null, "seq": 0}   // ok once STA has an IP; error after ~45 s
   }
 }
 ```
@@ -148,7 +149,7 @@ GET returns everything user-editable except price-logic (see `/api/logic`) and m
   "min_offset": 0.5,
   "soc_target_enabled": false,
   "soc_target": 80,
-  "schedule": [ {"days": [1,2,3,4,5], "start": "01:00", "end": "05:00"} ],  // days 0=Sun..6=Sat; start>end = overnight; max 8
+  "schedule": [ {"days": [1,2,3,4,5], "start": "01:00", "end": "05:00", "max_price": 3} ],  // days 0=Sun..6=Sat; start>end = overnight; max 8; max_price optional (¢, absent/null = no cap)
   "dongle_mac": "8C:DE:52:DE:B4:A0",
   "poll_on_s": 60,
   "poll_off_min": 60,
@@ -168,7 +169,8 @@ GET returns everything user-editable except price-logic (see `/api/logic`) and m
 - `wifi.ssid` / password are **not** settable here (use `POST /api/wifi`); `wifi.connect_timeout_s` is.
 - `schedule` replaces the whole list.
 - Validation → 400 `{"error": "…"}`: ranges (soc 0–100, poll_on_s 10–3600, poll_off_min 5–1440,
-  stale_min 5–120, probe 0–600, threshold 0–20000, min_offset −10–10), MAC `XX:XX:XX:XX:XX:XX`,
+  stale_min 5–120, probe 0–600, threshold 0–20000, min_offset −10–10, wifi.connect_timeout_s
+  30–3600, schedule max_price −100–100), integer fields reject fractions, MAC `XX:XX:XX:XX:XX:XX`,
   `HH:MM`, days 0–6, `ota_url` must start with `https://`.
 
 ## GET /api/logic · PUT /api/logic
@@ -238,6 +240,7 @@ Newest first: `[{"t": 1794089400, "up": 277800, "k": "relay", "msg": "Relay ON: 
 ```json
 {
   "phase": "downloading",          // idle | checking | available | up_to_date | downloading | verifying | done | error
+  "job": "running",                // jobs.ota.state; while queued/running a non-active phase is stale
   "current": "1.3.2",
   "manifest": {"version": "1.4.0", "url": "https://…/firmware-1.4.0.bin", "size": 1214336,
                "sha256": "ab12…", "notes": "…", "direct_bin": false},   // null before a check

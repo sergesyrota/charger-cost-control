@@ -18,7 +18,7 @@
 
 constexpr const char* kDefaultOtaUrl =
     "https://github.com/sergesyrota/charger-cost-control/releases/latest/download/manifest.json";
-constexpr size_t kStateNameMax = 48;  // bytes incl. NUL (24 Cyrillic chars)
+constexpr size_t kStateNameMax = 48;  // bytes incl. NUL: max 47 bytes (23 Cyrillic chars)
 constexpr size_t kMaxWindows = 8;
 constexpr size_t kFiveMax = 300;      // 5-min feed holds ~24 h = 288 points
 
@@ -82,6 +82,7 @@ struct ScheduleWindow {
   uint8_t days = 0;         // bit0 = Sunday .. bit6 = Saturday
   uint16_t start_min = 0;   // minute of day 0..1439
   uint16_t end_min = 0;     // start > end => overnight (ends next day); start == end => never
+  float max_price = NAN;    // optional cap, ¢/kWh supply: forces ON only while price <= cap (NAN = no cap)
 };
 
 // Everything user-editable. Price-logic JSON is stored separately (logic::LogicConfig).
@@ -149,6 +150,7 @@ struct Decision {
   char state[kStateNameMax] = "";     // state used; also the new sticky state to persist
   StateHow how = StateHow::None;
   int8_t block_index = -1;            // index into state's charging_logic as stored
+  float block_soc = NAN;              // applied block's soc threshold (for "Bolt/Заряд soc≥40")
   bool logic_fallback = false;        // blocks came from states.default
   float price = NAN;                  // price evaluated
   float price_on = NAN, price_off = NAN;  // resolved ("min" substituted)

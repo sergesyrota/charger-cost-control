@@ -80,24 +80,31 @@ static bool isHex64(const char* s) {
 }
 
 int compareVersions(const char* a, const char* b, bool* ok) {
-  auto parse = [](const char* s, long v[3]) -> bool {
-    v[0] = v[1] = v[2] = 0;
+  // Needs at least "N.N" (so a bare git hash like "7296ee9" is not a version). v[3] ranks the
+  // suffix: "-rc1"/"-beta" (pre-release) = -1 < release = 0 <= "-5-gabc" (commits after the tag).
+  auto parse = [](const char* s, long v[4]) -> bool {
+    v[0] = v[1] = v[2] = v[3] = 0;
     if (!s) return false;
     if (*s == 'v' || *s == 'V') s++;
     if (!isdigit((unsigned char)*s)) return false;
+    int parts = 0;
     for (int i = 0; i < 3; i++) {
       char* end;
       v[i] = strtol(s, &end, 10);
       s = end;
+      parts++;
       if (*s != '.' || !isdigit((unsigned char)s[1])) break;
       s++;
     }
+    if (parts < 2 || isalnum((unsigned char)*s)) return false;
+    if (*s == '-' && s[1] && !isdigit((unsigned char)s[1]) && strncmp(s + 1, "dirty", 5) != 0) v[3] = -1;
+    else if (*s == '-' && isdigit((unsigned char)s[1])) v[3] = 1;
     return true;
   };
-  long va[3], vb[3];
+  long va[4], vb[4];
   bool good = parse(a, va) & parse(b, vb);
   if (ok) *ok = good;
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < 4; i++)
     if (va[i] != vb[i]) return va[i] < vb[i] ? -1 : 1;
   return 0;
 }
@@ -196,6 +203,9 @@ bool install(const char* url) {
   if (!have) return fail("No manifest checked");
   if (!isHttps(m.url)) return fail("URL must be https://");
 
+  // With rollback enabled esp_ota_begin() refuses while the running image is unconfirmed.
+  if (pendingVerify()) return fail("Running firmware not confirmed yet (health check pending); retry in a few min");
+
   netlock::Guard lock("ota", 60000);
   if (!lock.ok()) return fail("Network busy");
 
@@ -206,7 +216,8 @@ bool install(const char* url) {
   dl = Dl();
   dl.expect = m.size;
   dl.cap = part->size;
-  if (esp_ota_begin(part, OTA_WITH_SEQUENTIAL_WRITES, &dl.h) != ESP_OK) return fail("esp_ota_begin failed");
+  esp_err_t be = esp_ota_begin(part, OTA_WITH_SEQUENTIAL_WRITES, &dl.h);
+  if (be != ESP_OK) return fail("esp_ota_begin failed (%s)", esp_err_to_name(be));
   mbedtls_sha256_init(&dl.sha);
   mbedtls_sha256_starts(&dl.sha, 0);
 

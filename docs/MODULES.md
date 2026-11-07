@@ -59,8 +59,8 @@ test/test_{price,logic,car}/  Unity tests (env:native), fixtures in test/fixture
   TLS + active GATT.
 - **Secrets are write-only.** Wi-Fi password, Pushover token/user never leave the device: APIs expose
   only `*_set` booleans; empty/omitted on PUT = keep; `*_clear: true` clears. Never log them.
-- **Lean.** Image budget is tight (libs alone ≈ 1.275 MB of a 1.6 MB slot): no std::regex, no
-  iostream, no new libraries without asking. Prefer fixed buffers; avoid large stack objects in the
+- **Lean.** Image budget is tight (firmware.bin ≈ 1.63 MB of a 1.81 MB slot): no std::regex, no
+  iostream, no try/catch (built with `-fno-exceptions`), no new libraries without asking. Prefer fixed buffers; avoid large stack objects in the
   AsyncTCP task (copy small structs, use `app::withPrices()` for the big snapshot).
 - **Tests are sparse** (owner request): a handful of high-value pure-logic cases per folder. No tests
   for glue code.

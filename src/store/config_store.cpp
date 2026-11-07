@@ -47,6 +47,12 @@ bool loadConfig(Config& out) {
   return false;
 }
 
+bool peekConfig(Config& out) {
+  std::string s;
+  out = Config();
+  return readBlob("cfg", s) && cfgjson::fromStorage(s.data(), s.size(), out);
+}
+
 bool saveConfig(const Config& c) { return writeBlob("cfg", cfgjson::toStorage(c)); }
 
 bool loadLogic(logic::LogicConfig& out) {

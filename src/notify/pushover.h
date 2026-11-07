@@ -30,7 +30,7 @@ void loop();                              // loop task: sends queued message / h
 
 // ---- message formatting (PLAN §10). `out` is always NUL-terminated.
 // ON (call after the post-ON car probe), e.g.
-//   "ON: Price is low (1.2¢ ≤ 2¢) — Bolt/Заряд. Charging started: 1.4 kW, 52%."
+//   "ON: Price is low (1.2¢ ≤ 2¢) — Bolt/Заряд soc≥40. Charging started: 1.4 kW, 52%."
 //   "… Car connected, not charging (52%)."  /  "… Car not detected."
 // `manual` prefixes "Manual: ". "Bolt/<state>" is appended only for price decisions.
 void formatOn(const Decision& d, bool manual, const CarSnapshot& car, char* out, size_t cap);
