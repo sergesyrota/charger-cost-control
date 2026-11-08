@@ -43,7 +43,7 @@ bool loadConfig(Config& out) {
   if (!readBlob("cfg", s)) { out = Config(); return false; }   // first boot: factory defaults
   if (cfgjson::fromStorage(s.data(), s.size(), out)) return true;
   out = Config();
-  evlog::add(evlog::Kind::Err, "Stored config invalid; using factory defaults");
+  evlog::add(evlog::Kind::Err, "Сохранённые настройки повреждены, используются заводские");
   return false;
 }
 
@@ -61,7 +61,7 @@ bool loadLogic(logic::LogicConfig& out) {
   logic::LogicConfig t;
   if (logic::parse(s.data(), s.size(), t, nullptr)) { out = t; return true; }
   out = logic::factoryDefault();
-  evlog::add(evlog::Kind::Err, "Stored price logic invalid; using factory defaults");
+  evlog::add(evlog::Kind::Err, "Сохранённые ценовые правила повреждены, используются заводские");
   return false;
 }
 

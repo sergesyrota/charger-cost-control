@@ -10,7 +10,7 @@
 //     schedule -> OFF; schedule_price -> fall through to price. A window with max_price forces ON
 //     only while the price is known and <= max_price; otherwise it counts as "outside".
 //  4. Price logic: needs clock + known price; else Default.
-//  5. Default: cfg.default_relay with reason "<why> → relay held at default (OFF)".
+//  5. Default: cfg.default_relay with reason "<why> → реле по умолчанию (ВЫКЛ)".
 // Reason strings follow the prototype decide() and PLAN §10 ("Price is low (1.2¢ ≤ 2¢)",
 // "Price is high (3.4¢ > 3¢)", "Not enough confidence yet (:12 < :20)", ...).
 #pragma once

@@ -75,25 +75,25 @@ struct Ctx {
   bool has(JsonObjectConst o, const char* k) { return !o[k].isNull(); }
   void flag(JsonObjectConst o, const char* k, bool& dst) {
     if (!has(o, k)) return;
-    if (!o[k].is<bool>()) return fail(k, "must be true/false");
+    if (!o[k].is<bool>()) return fail(k, "должно быть true/false");
     dst = o[k].as<bool>();
   }
   // number in [lo,hi] -> integer/float destination
   template <class T>
   void num(JsonObjectConst o, const char* k, double lo, double hi, T& dst) {
     if (!has(o, k)) return;
-    if (!o[k].is<double>()) return fail(k, "must be a number");
+    if (!o[k].is<double>()) return fail(k, "должно быть числом");
     double v = o[k].as<double>();
-    if (v < lo || v > hi) return fail(k, "out of range");
-    if (std::is_integral<T>::value && v != floor(v)) return fail(k, "must be an integer");
+    if (v < lo || v > hi) return fail(k, "вне допустимого диапазона");
+    if (std::is_integral<T>::value && v != floor(v)) return fail(k, "должно быть целым");
     dst = (T)v;
   }
   // string with max length (excl. NUL) -> char buffer; returns true if provided
   bool str(JsonObjectConst o, const char* k, char* dst, size_t cap) {
     if (!has(o, k)) return false;
-    if (!o[k].is<const char*>()) { fail(k, "must be a string"); return false; }
+    if (!o[k].is<const char*>()) { fail(k, "должно быть строкой"); return false; }
     const char* s = o[k].as<const char*>();
-    if (strlen(s) >= cap) { fail(k, "too long"); return false; }
+    if (strlen(s) >= cap) { fail(k, "слишком длинное"); return false; }
     strcpy(dst, s);
     return true;
   }
@@ -128,33 +128,33 @@ bool mergeApi(JsonObjectConst in, Config& c, std::string& err) {
   x.num(in, "probe_delay_s", 0, 600, t.probe_delay_s);
 
   if (x.str(in, "dongle_mac", t.dongle_mac, sizeof(t.dongle_mac)) && !validMac(t.dongle_mac))
-    x.fail("dongle_mac", "must look like XX:XX:XX:XX:XX:XX");
+    x.fail("dongle_mac", "формат XX:XX:XX:XX:XX:XX");
 
   if (x.str(in, "ota_url", t.ota_url, sizeof(t.ota_url))) {
     if (!t.ota_url[0]) strcpy(t.ota_url, kDefaultOtaUrl);
-    else if (strncmp(t.ota_url, "https://", 8) != 0 || !t.ota_url[8]) x.fail("ota_url", "must start with https://");
+    else if (strncmp(t.ota_url, "https://", 8) != 0 || !t.ota_url[8]) x.fail("ota_url", "должен начинаться с https://");
   }
 
   if (!in["schedule"].isNull()) {
-    if (!in["schedule"].is<JsonArrayConst>()) x.fail("schedule", "must be a list");
+    if (!in["schedule"].is<JsonArrayConst>()) x.fail("schedule", "должно быть списком");
     else {
       JsonArrayConst a = in["schedule"].as<JsonArrayConst>();
-      if (a.size() > kMaxWindows) x.fail("schedule", "too many windows (max 8)");
+      if (a.size() > kMaxWindows) x.fail("schedule", "слишком много окон (максимум 8)");
       else {
         t.window_count = 0;
         for (JsonObjectConst w : a) {
           ScheduleWindow sw;
-          if (!w["days"].is<JsonArrayConst>()) { x.fail("schedule", "window needs a days list"); break; }
+          if (!w["days"].is<JsonArrayConst>()) { x.fail("schedule", "у окна должен быть список дней"); break; }
           for (JsonVariantConst d : w["days"].as<JsonArrayConst>()) {
-            if (!d.is<int>() || d.as<int>() < 0 || d.as<int>() > 6) { x.fail("schedule", "days must be 0..6"); break; }
+            if (!d.is<int>() || d.as<int>() < 0 || d.as<int>() > 6) { x.fail("schedule", "дни должны быть 0..6"); break; }
             sw.days |= (uint8_t)(1 << d.as<int>());
           }
           if (!parseHHMM(w["start"] | "", sw.start_min) || !parseHHMM(w["end"] | "", sw.end_min))
-            x.fail("schedule", "times must be HH:MM");
+            x.fail("schedule", "время в формате ЧЧ:ММ");
           JsonVariantConst mp = w["max_price"];
           if (!mp.isNull()) {   // absent / null = no cap
             if (!mp.is<double>() || mp.is<bool>() || mp.as<double>() < -100 || mp.as<double>() > 100)
-              x.fail("schedule", "max_price must be a number (-100..100) or null");
+              x.fail("schedule", "max_price — число (-100..100) или null");
             else sw.max_price = roundf(mp.as<float>() * 10.0f) / 10.0f;
           }
           if (x.bad) break;
@@ -165,7 +165,7 @@ bool mergeApi(JsonObjectConst in, Config& c, std::string& err) {
   }
 
   if (!in["pushover"].isNull()) {
-    if (!in["pushover"].is<JsonObjectConst>()) x.fail("pushover", "must be an object");
+    if (!in["pushover"].is<JsonObjectConst>()) x.fail("pushover", "должно быть объектом");
     else {
       JsonObjectConst p = in["pushover"].as<JsonObjectConst>();
       x.flag(p, "enabled", t.pushover_enabled);
@@ -179,7 +179,7 @@ bool mergeApi(JsonObjectConst in, Config& c, std::string& err) {
     }
   }
   if (!in["wifi"].isNull()) {
-    if (!in["wifi"].is<JsonObjectConst>()) x.fail("wifi", "must be an object");
+    if (!in["wifi"].is<JsonObjectConst>()) x.fail("wifi", "должно быть объектом");
     else x.num(in["wifi"].as<JsonObjectConst>(), "connect_timeout_s", 30, 3600, t.wifi_timeout_s);
   }
 

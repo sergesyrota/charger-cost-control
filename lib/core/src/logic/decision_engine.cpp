@@ -5,7 +5,10 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
+
+#include "util/utf8.h"
 
 namespace logic {
 
@@ -14,6 +17,17 @@ namespace {
 void copy(char* dst, size_t n, const char* src) {
   strncpy(dst, src ? src : "", n - 1);
   dst[n - 1] = 0;
+  utf8FixTail(dst);
+}
+
+// d.reason = printf(...), never ending in half a UTF-8 character.
+void say(Decision& d, const char* fmt, ...) __attribute__((format(printf, 2, 3)));
+void say(Decision& d, const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(d.reason, sizeof d.reason, fmt, ap);
+  va_end(ap);
+  utf8FixTail(d.reason);
 }
 
 // Like the prototype fmtC(): round to 0.1, drop ".0", Unicode minus, "¢" suffix. "—" for unknown.
@@ -33,22 +47,24 @@ void setDefault(Decision& d, const DecisionInput& in, const char* why) {
   const bool def = in.cfg ? in.cfg->default_relay : false;
   d.relay = def;
   d.src = DecisionSrc::Default;
-  snprintf(d.reason, sizeof d.reason, "%s → relay held at default (%s)", why, def ? "ON" : "OFF");
+  say(d, "%s → реле по умолчанию (%s)", why, def ? "ВКЛ" : "ВЫКЛ");
 }
 
-const char* const kDay[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+const char* const kDay[] = {"Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"};
 
-// Like prototype winText(): "Mon–Fri 01:00–05:00".
+// Like the UI winText(): "Пн–Пт 01:00–05:00" (week starts on Monday).
 void windowText(char* buf, size_t n, const ScheduleWindow& w) {
   char ds[40] = "";
   const uint8_t d = w.days & 0x7f;
-  if (d == 0x3e) copy(ds, sizeof ds, "Mon–Fri");
-  else if (d == 0x41) copy(ds, sizeof ds, "Sat–Sun");
-  else if (d == 0x7f) copy(ds, sizeof ds, "Every day");
+  if (d == 0x3e) copy(ds, sizeof ds, "Пн–Пт");
+  else if (d == 0x41) copy(ds, sizeof ds, "Сб–Вс");
+  else if (d == 0x7f) copy(ds, sizeof ds, "Ежедневно");
   else {
     size_t len = 0;
-    for (int i = 0; i < 7; i++)
+    for (int k = 1; k <= 7; k++) {  // Monday first
+      const int i = k % 7;
       if (d & (1 << i)) len += snprintf(ds + len, sizeof ds - len, "%s%s", len ? " " : "", kDay[i]);
+    }
   }
   snprintf(buf, n, "%s %02u:%02u–%02u:%02u", ds, w.start_min / 60, w.start_min % 60, w.end_min / 60,
            w.end_min % 60);
@@ -137,9 +153,9 @@ Decision decide(const DecisionInput& in) {
     d.src = DecisionSrc::Manual;
     if (in.ovr.until) {
       ChicagoTime u = chicagoFromEpoch(in.ovr.until);
-      snprintf(d.reason, sizeof d.reason, "Manual %s until %02u:%02u", on ? "ON" : "OFF", u.hour, u.minute);
+      say(d, "Ручное %s до %02u:%02u", on ? "ВКЛ" : "ВЫКЛ", u.hour, u.minute);
     } else {
-      snprintf(d.reason, sizeof d.reason, "Manual %s — indefinitely", on ? "ON" : "OFF");
+      say(d, "Ручное %s — бессрочно", on ? "ВКЛ" : "ВЫКЛ");
     }
     return d;
   }
@@ -153,21 +169,21 @@ Decision decide(const DecisionInput& in) {
       if (held) {
         d.relay = false;
         d.src = DecisionSrc::Overlay;
-        copy(d.reason, sizeof d.reason, "Bolt is full");
+        copy(d.reason, sizeof d.reason, "Bolt заряжен полностью");
         return d;
       }
     }
     if (cfg.soc_target_enabled && in.soc >= cfg.soc_target) {
       d.relay = false;
       d.src = DecisionSrc::Overlay;
-      snprintf(d.reason, sizeof d.reason, "SOC target %u%% reached", cfg.soc_target);
+      say(d, "Достигнут целевой заряд %u%%", cfg.soc_target);
       return d;
     }
   }
 
   // 3. Schedule.
   if (mode == Mode::Schedule || mode == Mode::SchedulePrice) {
-    if (!in.clock_valid) { setDefault(d, in, "Clock not set yet, schedule can’t run"); return d; }
+    if (!in.clock_valid) { setDefault(d, in, "Часы ещё не установлены, расписание не работает"); return d; }
     // An uncapped active window, or a capped one with a known price <= cap, forces ON. A capped
     // window over its cap (or with unknown price) behaves like "outside the windows".
     const ScheduleWindow* capped = nullptr;
@@ -185,30 +201,28 @@ Decision decide(const DecisionInput& in) {
       d.src = DecisionSrc::Schedule;
       d.price = in.price;
       if (has_cap)
-        snprintf(d.reason, sizeof d.reason, "Inside schedule window %s (%s ≤ %s cap)", wt, C(in.price).s,
-                 C(w.max_price).s);
+        say(d, "Окно расписания %s (%s ≤ лимит %s)", wt, C(in.price).s, C(w.max_price).s);
       else
-        snprintf(d.reason, sizeof d.reason, "Inside schedule window %s", wt);
+        say(d, "Окно расписания %s", wt);
       return d;
     }
     if (mode == Mode::Schedule) {
       d.relay = false;
       d.src = DecisionSrc::Schedule;
       if (capped && isnan(in.price))
-        snprintf(d.reason, sizeof d.reason, "Schedule window capped at %s, price unknown", C(capped->max_price).s);
+        say(d, "Окно расписания с лимитом %s, цена неизвестна", C(capped->max_price).s);
       else if (capped)
-        snprintf(d.reason, sizeof d.reason, "Schedule window price cap exceeded (%s > %s)", C(in.price).s,
-                 C(capped->max_price).s);
+        say(d, "Цена выше лимита окна расписания (%s > %s)", C(in.price).s, C(capped->max_price).s);
       else
-        copy(d.reason, sizeof d.reason, "Outside schedule windows (schedule only)");
+        copy(d.reason, sizeof d.reason, "Вне окон расписания (только расписание)");
       return d;
     }
   }
 
   // 4. Price logic.
-  if (!in.clock_valid) { setDefault(d, in, "Clock not set yet (waiting for NTP)"); return d; }
-  if (isnan(in.price)) { setDefault(d, in, "No fresh price data"); return d; }
-  if (!in.logic) { setDefault(d, in, "No price logic configured"); return d; }
+  if (!in.clock_valid) { setDefault(d, in, "Часы ещё не установлены (ждём NTP)"); return d; }
+  if (isnan(in.price)) { setDefault(d, in, "Нет свежих данных о цене"); return d; }
+  if (!in.logic) { setDefault(d, in, "Ценовые правила не заданы"); return d; }
 
   const float soc = isnan(in.soc) ? 0.0f : in.soc;
   StatePick p = pickState(*in.logic, soc, in.sticky_state);
@@ -216,14 +230,15 @@ Decision decide(const DecisionInput& in) {
   // (A sticky name that didn't exist and was resolved to a real state is persisted too.)
   if (p.state) copy(d.state, sizeof d.state, p.name.c_str());
   if (p.block_index < 0) {
-    char why[120];
-    snprintf(why, sizeof why, "State “%s” has no charging bands", p.name.c_str());
+    char why[160];
+    snprintf(why, sizeof why, "У состояния «%s» нет диапазонов заряда", p.name.c_str());
+    utf8FixTail(why);
     setDefault(d, in, why);
     return d;
   }
   const Block& b = (*p.blocks)[p.block_index];
   const float on = b.on.resolve(in.min_price), off = b.off.resolve(in.min_price);
-  if (isnan(on) || isnan(off)) { setDefault(d, in, "“min” price unavailable"); return d; }
+  if (isnan(on) || isnan(off)) { setDefault(d, in, "Цена «min» недоступна"); return d; }
 
   d.src = DecisionSrc::Price;
   d.how = p.how;
@@ -242,21 +257,21 @@ Decision decide(const DecisionInput& in) {
   if (in.relay_now) {
     if (pr > off) {
       d.relay = false;
-      snprintf(d.reason, sizeof d.reason, "Price is high (%s > %s)", C(pr).s, C(off).s);
+      say(d, "Цена высокая (%s > %s)", C(pr).s, C(off).s);
     } else if (!enough) {
       d.relay = false;
-      snprintf(d.reason, sizeof d.reason, "Not enough confidence yet (:%02u < :%02u)", minute, km);
+      say(d, "Мало данных за час (:%02u < :%02u)", minute, km);
     } else {
-      snprintf(d.reason, sizeof d.reason, "Price %s is at or below stop %s — keep charging", C(pr).s, C(off).s);
+      say(d, "Цена %s не выше порога остановки %s — заряжаем дальше", C(pr).s, C(off).s);
     }
   } else {
     if (pr <= on && enough) {
       d.relay = true;
-      snprintf(d.reason, sizeof d.reason, "Price is low (%s ≤ %s)", C(pr).s, C(on).s);
+      say(d, "Цена низкая (%s ≤ %s)", C(pr).s, C(on).s);
     } else if (pr <= on) {
-      snprintf(d.reason, sizeof d.reason, "Price is low, waiting for :%02u confidence", km);
+      say(d, "Цена низкая, ждём :%02u для надёжной цены", km);
     } else {
-      snprintf(d.reason, sizeof d.reason, "Price %s is above start %s — waiting", C(pr).s, C(on).s);
+      say(d, "Цена %s выше порога старта %s — ждём", C(pr).s, C(on).s);
     }
   }
   return d;

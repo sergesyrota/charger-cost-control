@@ -45,11 +45,11 @@ void begin() {
   api::registerRoutes(s_server);
   s_server.onNotFound([](AsyncWebServerRequest* r) {
     if (r->url().startsWith("/api/")) {
-      r->send(404, "application/json", "{\"error\":\"not found\"}");
+      r->send(404, "application/json", "{\"error\":\"не найдено\"}");
     } else if (wifi::apActive()) {
       redirectToPortal(r);  // captive portal probes (generate_204, hotspot-detect.html, ncsi.txt, ...)
     } else {
-      r->send(404, "text/plain", "Not found");
+      r->send(404, "text/plain; charset=utf-8", "Не найдено");
     }
   });
   s_server.begin();

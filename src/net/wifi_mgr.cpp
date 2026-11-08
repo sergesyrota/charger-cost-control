@@ -118,7 +118,7 @@ void startAp() {
   s_dns.setErrorReplyCode(DNSReplyCode::NoError);
   s_dns.start(53, "*", WiFi.softAPIP());
   s_ap = true;
-  evlog::add(evlog::Kind::Sys, "Hotspot %s up at %s", s_ap_ssid, WiFi.softAPIP().toString().c_str());
+  evlog::add(evlog::Kind::Sys, "Точка доступа %s включена, %s", s_ap_ssid, WiFi.softAPIP().toString().c_str());
 }
 
 void stopAp() {
@@ -127,7 +127,7 @@ void stopAp() {
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
   s_ap = false;
-  evlog::add(evlog::Kind::Sys, "Hotspot off");
+  evlog::add(evlog::Kind::Sys, "Точка доступа выключена");
 }
 
 void startMdns(uint32_t now) {
@@ -247,7 +247,7 @@ void loop() {
       s_was_up = true;
       s_up_since = now;
       Serial.printf("Wi-Fi connected: %s IP %s\n", s_ssid, ip().c_str());
-      evlog::add(evlog::Kind::Sys, "Wi-Fi connected to %s, IP %s, %d dBm", s_ssid, ip().c_str(), rssi());
+      evlog::add(evlog::Kind::Sys, "Wi-Fi: подключено к %s, IP %s, %d дБм", s_ssid, ip().c_str(), rssi());
     }
     if (s_ap && (WiFi.softAPgetStationNum() == 0 || now - s_up_since >= kApGraceMs)) stopAp();
     return;
@@ -256,7 +256,7 @@ void loop() {
   if (s_was_up) {
     s_was_up = false;
     s_down_since = now;
-    evlog::add(evlog::Kind::Sys, "Wi-Fi disconnected");
+    evlog::add(evlog::Kind::Sys, "Wi-Fi: соединение потеряно");
   }
   if (!s_ap && now - s_down_since >= s_timeout_ms) startAp();
   if (!s_scanning && !s_scan_req && now - s_last_try >= (s_ap ? kRetryApMs : kRetryStaMs)) tryConnect();
@@ -289,11 +289,11 @@ void setCredentials(const char* ssid, const char* pass) {
   uint32_t now = millis();
   s_down_since = now;  // restart the 5-min STA-only cycle
   if (!s_has_creds) {
-    evlog::add(evlog::Kind::Sys, "Wi-Fi credentials cleared");
+    evlog::add(evlog::Kind::Sys, "Wi-Fi: данные сети удалены");
     startAp();
     return;
   }
-  evlog::add(evlog::Kind::Sys, "Wi-Fi credentials saved for %s", s_ssid);
+  evlog::add(evlog::Kind::Sys, "Wi-Fi: сохранена сеть %s", s_ssid);
   // If the hotspot is up (user is configuring through it) keep it until STA connects and the
   // client leaves; otherwise STA only.
   if (!s_ap) WiFi.mode(WIFI_STA);

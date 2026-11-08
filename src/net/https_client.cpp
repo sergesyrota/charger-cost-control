@@ -21,6 +21,11 @@
 
 namespace https {
 
+const char* const kErrNoNetwork = "нет сети";
+const char* const kErrNoClock = "часы не установлены";
+const char* const kErrBusy = "сеть занята";
+const char* const kErrTransport = "ошибка соединения";
+
 namespace {
 
 constexpr int kMaxRedirects = 5;
@@ -38,9 +43,9 @@ void logHeap(const char* when, const char* url) {
 }
 
 const char* precheck(const char* url) {
-  if (!url || strncmp(url, "https://", 8) != 0) return "https only";
-  if (!sysclock::valid()) return "clock not set";
-  if (!wifi::staConnected()) return "no network";
+  if (!url || strncmp(url, "https://", 8) != 0) return "только https";
+  if (!sysclock::valid()) return kErrNoClock;
+  if (!wifi::staConnected()) return kErrNoNetwork;
   return nullptr;
 }
 
@@ -64,13 +69,13 @@ bool resolveLocation(const String& cur, const String& loc, String& out) {
 // 5 ms when no data, gives up after `idle_ms` without data or `total_ms` overall.
 const char* streamBody(HTTPClient& http, const BodyCb& body, Result& r, uint32_t idle_ms, uint32_t total_ms) {
   NetworkClient* s = http.getStreamPtr();
-  if (!s) return "read failed";
+  if (!s) return "ошибка чтения";
   static uint8_t buf[512];  // loop task only (under netlock)
   int remaining = http.getSize();  // -1 = until close
   const uint32_t t0 = millis();
   uint32_t last = t0;
   while (remaining != 0) {
-    if (millis() - t0 > total_ms) return "read timeout";
+    if (millis() - t0 > total_ms) return "таймаут чтения";
     int a = s->available();
     if (a > 0) {
       size_t want = (size_t)a < sizeof(buf) ? (size_t)a : sizeof(buf);
@@ -79,16 +84,16 @@ const char* streamBody(HTTPClient& http, const BodyCb& body, Result& r, uint32_t
       if (n <= 0) { delay(5); continue; }
       last = millis();
       wdtFeed();
-      if (body && !body(buf, (size_t)n)) return "aborted";
+      if (body && !body(buf, (size_t)n)) return "прервано";
       r.bytes += n;
       if (remaining > 0) remaining -= n;
     } else {
       if (!s->connected()) break;
-      if (millis() - last > idle_ms) return "read timeout";
+      if (millis() - last > idle_ms) return "таймаут чтения";
       delay(5);
     }
   }
-  if (remaining > 0) return "short body";
+  if (remaining > 0) return "ответ оборван";
   return "";
 }
 
@@ -103,7 +108,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
   netlock::Guard lock("https", timeout_ms + 5000);
   if (!lock.ok()) {
     r.status = -1;
-    r.error = "network busy";
+    r.error = kErrBusy;
     return r;
   }
 
@@ -127,7 +132,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
     http->setUserAgent("ChargerControl/" FW_VERSION);
     if (!http->begin(*client, cur)) {
       r.status = -1;
-      r.error = "bad url";
+      r.error = "неверный адрес";
       return r;
     }
     http->collectHeaders(kHeaders, 1);
@@ -143,7 +148,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
       http->end();
       logHeap("after", cur.c_str());
       r.status = code < 0 ? code : -1;
-      r.error = "connect failed";
+      r.error = "нет соединения с сервером";
       return r;
     }
     if (!form && isRedirect(code)) {
@@ -154,7 +159,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
       logHeap("after", cur.c_str());
       if (!ok) {
         r.status = code;
-        r.error = "bad redirect";
+        r.error = "неверное перенаправление";
         return r;
       }
       cur = next;
@@ -169,7 +174,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
     return r;
   }
   r.status = -1;
-  r.error = "too many redirects";
+  r.error = "слишком много перенаправлений";
   return r;
 }
 

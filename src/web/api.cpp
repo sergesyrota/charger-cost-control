@@ -73,14 +73,14 @@ void onJson(AsyncWebServer& s, const char* uri, WebRequestMethod m, size_t maxBo
   s.on(
       uri, m,
       [maxBody, fn](AsyncWebServerRequest* r) {
-        if (!sameOriginJson(r)) return sendErr(r, 415, "Content-Type: application/json from this device's own page required");
+        if (!sameOriginJson(r)) return sendErr(r, 415, "нужен Content-Type: application/json со страницы самого устройства");
         size_t len = r->contentLength();
-        if (len > maxBody) return sendErr(r, 413, "body too large");
+        if (len > maxBody) return sendErr(r, 413, "слишком большой запрос");
         JsonDocument doc;
         if (len > 0) {
           char* body = (char*)r->_tempObject;
-          if (!body) return sendErr(r, 400, "empty body");
-          if (deserializeJson(doc, body, len) || !doc.is<JsonObject>()) return sendErr(r, 400, "invalid JSON object");
+          if (!body) return sendErr(r, 400, "пустой запрос");
+          if (deserializeJson(doc, body, len) || !doc.is<JsonObject>()) return sendErr(r, 400, "некорректный JSON-объект");
         } else {
           doc.to<JsonObject>();
         }
@@ -452,7 +452,7 @@ void putLogic(AsyncWebServerRequest* r, JsonObject body) {
   if (body["logic"].is<JsonObject>()) src = body["logic"];
   if (!logic::fromJson(src, lc, &errs)) {
     JsonDocument d;
-    d["error"] = "invalid logic";
+    d["error"] = "ошибки в правилах";
     JsonArray a = d["errors"].to<JsonArray>();
     for (auto& e : errs) a.add(e);
     return sendJson(r, 400, d);
@@ -467,15 +467,15 @@ void putLogic(AsyncWebServerRequest* r, JsonObject body) {
 void postOverride(AsyncWebServerRequest* r, JsonObject body) {
   Mode m;
   if (!body["mode"].is<const char*>() || !modeFromName(body["mode"].as<const char*>(), m))
-    return sendErr(r, 400, "unknown mode");
+    return sendErr(r, 400, "неизвестный режим");
   Override o;
   o.mode = m;
   if (!body["until"].isNull()) {
-    if (!body["until"].is<int64_t>()) return sendErr(r, 400, "until must be an epoch");
-    if (m != Mode::ManualOn && m != Mode::ManualOff) return sendErr(r, 400, "until only applies to manual modes");
-    if (!app::clockValid()) return sendErr(r, 503, "clock not set yet");
+    if (!body["until"].is<int64_t>()) return sendErr(r, 400, "until должен быть epoch");
+    if (m != Mode::ManualOn && m != Mode::ManualOff) return sendErr(r, 400, "until только для ручных режимов");
+    if (!app::clockValid()) return sendErr(r, 503, "часы ещё не установлены");
     int64_t u = body["until"].as<int64_t>();
-    if (u <= sysclock::now()) return sendErr(r, 400, "until is in the past");
+    if (u <= sysclock::now()) return sendErr(r, 400, "время until уже прошло");
     o.until = u;
   }
   std::string err;
@@ -542,7 +542,7 @@ void handleLog(AsyncWebServerRequest* r) {
     bool ok = false;
     for (int i = 0; i <= (int)evlog::Kind::Err; i++)
       if (kind == evlog::kindName((evlog::Kind)i)) ok = true;
-    if (!ok) return sendErr(r, 400, "unknown kind");
+    if (!ok) return sendErr(r, 400, "неизвестный тип");
   }
   AsyncResponseStream* s = r->beginResponseStream("application/json");
   s->addHeader("Cache-Control", "no-store");
@@ -623,9 +623,9 @@ void postWifi(AsyncWebServerRequest* r, JsonObject body) {
   const char* ssid = body["ssid"].is<const char*>() ? body["ssid"].as<const char*>() : "";
   const char* pass = body["password"].is<const char*>() ? body["password"].as<const char*>() : "";
   size_t sl = strlen(ssid), pl = strlen(pass);
-  if (sl == 0 || sl > 32) return sendErr(r, 400, "ssid must be 1-32 characters");
-  if (pl != 0 && (pl < 8 || pl > 63)) return sendErr(r, 400, "password must be 8-63 characters");
-  if (jobBusy(app::jobs().wifi)) return sendErr(r, 409, "wifi change already in progress");
+  if (sl == 0 || sl > 32) return sendErr(r, 400, "имя сети: 1–32 символа");
+  if (pl != 0 && (pl < 8 || pl > 63)) return sendErr(r, 400, "пароль: 8–63 символа");
+  if (jobBusy(app::jobs().wifi)) return sendErr(r, 409, "смена Wi-Fi уже идёт");
   app::requestWifi(ssid, pass);
   sendQueued(r, app::jobs().wifi.seq);
 }
@@ -634,9 +634,9 @@ void postWifi(AsyncWebServerRequest* r, JsonObject body) {
 bool bodyUrl(AsyncWebServerRequest* r, JsonObject body, const char*& url) {
   url = "";
   if (body["url"].isNull()) return true;
-  if (!body["url"].is<const char*>()) { sendErr(r, 400, "url must be a string"); return false; }
+  if (!body["url"].is<const char*>()) { sendErr(r, 400, "url должен быть строкой"); return false; }
   url = body["url"].as<const char*>();
-  if (*url && strncmp(url, "https://", 8) != 0) { sendErr(r, 400, "url must start with https://"); return false; }
+  if (*url && strncmp(url, "https://", 8) != 0) { sendErr(r, 400, "url должен начинаться с https://"); return false; }
   return true;
 }
 
@@ -660,31 +660,31 @@ void registerRoutes(AsyncWebServer& s) {
   s.on("/api/log", HTTP_GET, handleLog);
 
   onJson(s, "/api/pushover/test", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject) {
-    if (jobBusy(app::jobs().push_test)) return sendErr(r, 409, "test already running");
+    if (jobBusy(app::jobs().push_test)) return sendErr(r, 409, "тест уже идёт");
     std::string err;
-    if (!app::requestPushoverTest(err)) return sendErr(r, 400, err.empty() ? "pushover not configured" : err.c_str());
+    if (!app::requestPushoverTest(err)) return sendErr(r, 400, err.empty() ? "Pushover не настроен" : err.c_str());
     sendQueued(r, app::jobs().push_test.seq);
   });
   onJson(s, "/api/car/poll", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject) {
-    if (jobBusy(app::jobs().car_poll)) return sendErr(r, 409, "poll already running");
+    if (jobBusy(app::jobs().car_poll)) return sendErr(r, 409, "опрос уже идёт");
     app::requestCarPoll();
     sendQueued(r, app::jobs().car_poll.seq);
   });
   onJson(s, "/api/ota/check", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject b) {
     const char* url;
     if (!bodyUrl(r, b, url)) return;
-    if (jobBusy(app::jobs().ota)) return sendErr(r, 409, "OTA already running");
+    if (jobBusy(app::jobs().ota)) return sendErr(r, 409, "OTA уже выполняется");
     std::string err;
-    if (!app::requestOtaCheck(url, err)) return sendErr(r, 400, err.empty() ? "cannot check" : err.c_str());
+    if (!app::requestOtaCheck(url, err)) return sendErr(r, 400, err.empty() ? "проверка невозможна" : err.c_str());
     sendQueued(r, app::jobs().ota.seq);
   });
   onJson(s, "/api/ota/install", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject b) {
     const char* url;
     if (!bodyUrl(r, b, url)) return;
-    if (jobBusy(app::jobs().ota)) return sendErr(r, 409, "OTA already running");
-    if (!*url && !ota::progress().has_manifest) return sendErr(r, 409, "check for an update first");
+    if (jobBusy(app::jobs().ota)) return sendErr(r, 409, "OTA уже выполняется");
+    if (!*url && !ota::progress().has_manifest) return sendErr(r, 409, "сначала проверьте наличие обновления");
     std::string err;
-    if (!app::requestOtaInstall(url, err)) return sendErr(r, 400, err.empty() ? "cannot install" : err.c_str());
+    if (!app::requestOtaInstall(url, err)) return sendErr(r, 400, err.empty() ? "установка невозможна" : err.c_str());
     sendQueued(r, app::jobs().ota.seq);
   });
   s.on("/api/ota/progress", HTTP_GET, handleOtaProgress);

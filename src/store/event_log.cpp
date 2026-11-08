@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "net/clock.h"
+#include "util/utf8.h"
 
 namespace evlog {
 
@@ -19,8 +20,8 @@ namespace {
 constexpr const char* kPath = "/events.log";
 constexpr const char* kTmp = "/events.tmp";
 constexpr uint32_t kKeep = 500, kSlack = 100;   // trim to kKeep when the file reaches kKeep+kSlack
-constexpr uint32_t kRam = 32;
-constexpr size_t kMsg = 160;
+constexpr uint32_t kRam = 24;   // RAM tail (older entries come from the file)
+constexpr size_t kMsg = 255;    // bytes; Russian text is 2 bytes/letter
 
 struct Slot {
   int64_t t;
@@ -60,7 +61,7 @@ void trim() {
   File dst = LittleFS.open(kTmp, "w");
   if (!src || !dst) return;
   uint32_t skip = g_file_lines > kKeep ? g_file_lines - kKeep : 0;
-  char b[256];
+  char b[320];   // > longest line: 2 numbers + kind + kMsg
   while (src.available()) {
     size_t n = src.readBytesUntil('\n', b, sizeof(b) - 1);
     if (skip) { skip--; continue; }
@@ -120,11 +121,7 @@ void add(Kind k, const char* fmt, ...) {
   int n = vsnprintf(s.msg, sizeof(s.msg), fmt, ap);
   va_end(ap);
   if (n < 0) n = 0;
-  if ((size_t)n >= sizeof(s.msg)) {   // truncated: don't cut a UTF-8 sequence in half
-    n = sizeof(s.msg) - 1;
-    while (n > 0 && ((uint8_t)s.msg[n] & 0xC0) == 0x80) n--;
-    s.msg[n] = 0;
-  }
+  if ((size_t)n >= sizeof(s.msg)) utf8FixTail(s.msg);   // truncated: don't end in half a character
   for (char* p = s.msg; *p; p++)
     if (*p == '\n' || *p == '\r' || *p == '\t') *p = ' ';
   s.t = sysclock::now();
@@ -177,7 +174,7 @@ void forEach(size_t limit, const char* filter, const std::function<bool(const En
     gen = g_gen;
   }
   char blk[256];
-  char line[200];
+  char line[320];
   size_t idx = sizeof(line) - 1;
   line[idx] = 0;
   auto emit = [&]() -> int {   // 1 continue, 0 stop

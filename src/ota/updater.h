@@ -23,7 +23,7 @@ struct Manifest {
 struct Progress {
   Phase phase = Phase::Idle;
   uint32_t bytes = 0, total = 0;
-  char error[80] = "";
+  char error[160] = "";             // Russian UTF-8
   bool has_manifest = false;
   Manifest manifest;       // last checked
 };

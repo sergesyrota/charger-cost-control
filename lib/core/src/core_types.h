@@ -42,7 +42,7 @@ struct CarSnapshot {
   int64_t last_seen = 0;      // epoch the car last answered (online/asleep/charging)
   float capacity_kwh = NAN, odometer_mi = NAN;  // daily extras
   int32_t charge_count = -1;
-  char error[48] = "";        // last transport/parse error, "" if none
+  char error[96] = "";        // last transport/parse error (Russian UTF-8), "" if none
 };
 
 // ---------------------------------------------------------------- prices
@@ -145,7 +145,7 @@ const char* stateHowName(StateHow h);        // "" "forced" "entered" "sticky"
 struct Decision {
   bool relay = false;
   DecisionSrc src = DecisionSrc::Default;
-  char reason[160] = "";              // human text, e.g. "Price is low (1.2¢ ≤ 2¢)"
+  char reason[256] = "";              // UI/Pushover text (Russian, UTF-8), e.g. "Цена низкая (1.2¢ ≤ 2¢)"
   // price-logic context (src == Price, else state[0]==0 / block_index == -1)
   char state[kStateNameMax] = "";     // state used; also the new sticky state to persist
   StateHow how = StateHow::None;

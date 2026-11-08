@@ -26,6 +26,7 @@ Stub files named `*_stubs.cpp` may be split/renamed by their owner.
 lib/core/src/            PURE C++ (no Arduino/ESP headers; ArduinoJson allowed). Built for c3 + native.
   core_types.h           shared types: Config, Override, RuntimeState, PriceSnapshot, CarSnapshot, Decision, Mode…
   util/chicago_time.h    ChicagoTime (passed in, never read), chicagoOffset(), addDays()
+  util/utf8.h            utf8FixTail(): drop a half UTF-8 sequence left by truncation (texts are Russian)
   price/                 comed_parse (push parsers), price_math (currentSupply, lowestBy7am, derive)
   logic/                 logic_config (logic.json parse/validate/overlaps), decision_engine (decide)
   car/                   elm_parse, obd_pids, car_status
@@ -59,7 +60,7 @@ test/test_{price,logic,car}/  Unity tests (env:native), fixtures in test/fixture
   TLS + active GATT.
 - **Secrets are write-only.** Wi-Fi password, Pushover token/user never leave the device: APIs expose
   only `*_set` booleans; empty/omitted on PUT = keep; `*_clear: true` clears. Never log them.
-- **Lean.** Image budget is tight (firmware.bin ≈ 1.63 MB of a 1.81 MB slot): no std::regex, no
+- **Lean.** Image budget is tight (firmware.bin ≈ 1.64 MB of a 1.81 MB slot): no std::regex, no
   iostream, no try/catch (built with `-fno-exceptions`), no new libraries without asking. Prefer fixed buffers; avoid large stack objects in the
   AsyncTCP task (copy small structs, use `app::withPrices()` for the big snapshot).
 - **Tests are sparse** (owner request): a handful of high-value pure-logic cases per folder. No tests

@@ -12,6 +12,8 @@
 
 namespace pushover {
 
+constexpr size_t kMsgMax = 512;           // bytes incl. NUL (Russian text is 2 bytes/letter)
+
 struct Creds {
   bool enabled;
   const char* token;
@@ -29,12 +31,12 @@ bool sendNow(const char* msg, char* err, uint16_t err_cap);
 void loop();                              // loop task: sends queued message / handles retry
 
 // ---- message formatting (PLAN §10). `out` is always NUL-terminated.
-// ON (call after the post-ON car probe), e.g.
-//   "ON: Price is low (1.2¢ ≤ 2¢) — Bolt/Заряд soc≥40. Charging started: 1.4 kW, 52%."
-//   "… Car connected, not charging (52%)."  /  "… Car not detected."
-// `manual` prefixes "Manual: ". "Bolt/<state>" is appended only for price decisions.
+// Texts are Russian. ON (call after the post-ON car probe), e.g.
+//   "ВКЛ: Цена низкая (1.2¢ ≤ 2¢) — Bolt/Заряд, от 40%. Зарядка началась: 1.4 кВт, 52%."
+//   "… Машина на связи, но не заряжается (52%)."  /  "… Машина не найдена."
+// `manual` prefixes "Вручную: ". "Bolt/<state>" is appended only for price decisions.
 void formatOn(const Decision& d, bool manual, const CarSnapshot& car, char* out, size_t cap);
-// OFF, e.g. "OFF: Price is high (3.4¢ > 3¢), Bolt/Заряд (52%, 5m ago)." / "OFF: Bolt is full."
+// OFF, e.g. "ВЫКЛ: Цена высокая (3.4¢ > 3¢), Bolt/Заряд (52%, 5 мин назад)." / "ВЫКЛ: Bolt заряжен полностью."
 // `now` = epoch (0 if no clock: the age is omitted).
 void formatOff(const Decision& d, bool manual, const CarSnapshot& car, int64_t now, char* out, size_t cap);
 

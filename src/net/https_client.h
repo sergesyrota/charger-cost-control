@@ -9,14 +9,20 @@
 
 namespace https {
 
-// Return false from the callback to abort (result.error = "aborted").
+// Transport error texts (Russian; shown in the UI). Compare against these, not literals.
+extern const char* const kErrNoNetwork;  // no STA connection
+extern const char* const kErrNoClock;    // clock not set (TLS needs it)
+extern const char* const kErrBusy;       // network lock busy (BLE poll / other TLS)
+extern const char* const kErrTransport;  // generic fallback
+
+// Return false from the callback to abort (result.error = "прервано").
 using BodyCb = std::function<bool(const uint8_t* data, size_t len)>;
 
 struct Result {
   int status = 0;              // final HTTP status (after redirects); <0 = transport error
   int32_t content_length = -1; // -1 unknown / chunked
   size_t bytes = 0;            // body bytes delivered to the callback
-  const char* error = "";      // static string, "" on success
+  const char* error = "";      // static string (Russian), "" on success
   bool ok() const { return status >= 200 && status < 300 && !*error; }
 };
 

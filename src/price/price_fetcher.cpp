@@ -6,6 +6,7 @@
 
 #include "net/https_client.h"
 #include "price/comed_parse.h"
+#include "util/utf8.h"
 
 namespace prices {
 
@@ -16,7 +17,7 @@ static const int64_t kHourlyS = 3600;
 
 static PriceSnapshot s_snap;
 static FivePoint s_scratch[kFiveMax];     // parse target; swapped in only on success
-static char s_err[48] = "";
+static char s_err[96] = "";
 
 static int64_t s_five_due = 0;            // epoch; 0 = due now
 static int64_t s_today_due = 0, s_tomorrow_due = 0, s_actual_due = 0;
@@ -31,7 +32,8 @@ const char* lastError() { return s_err; }
 static void setErr(const https::Result& r) {
   if (r.ok()) { s_err[0] = 0; return; }
   if (*r.error) snprintf(s_err, sizeof(s_err), "%s", r.error);
-  else snprintf(s_err, sizeof(s_err), "http %d", r.status);
+  else snprintf(s_err, sizeof(s_err), "HTTP %d", r.status);
+  utf8FixTail(s_err);
 }
 
 static bool fetchFive(const ChicagoTime& now) {
@@ -40,7 +42,7 @@ static bool fetchFive(const ChicagoTime& now) {
     p.feed((const char*)d, n);
     return true;
   });
-  if (r.ok() && (!p.ok() || p.count() == 0)) r.error = "bad 5min data";
+  if (r.ok() && (!p.ok() || p.count() == 0)) r.error = "неверные 5-минутные данные";
   setErr(r);
   if (!r.ok()) { s_five_due = now.epoch + kRetryS; return false; }
   memcpy(s_snap.five, s_scratch, p.count() * sizeof(FivePoint));
@@ -60,7 +62,7 @@ static uint8_t fetchServlet(const char* type, uint32_t date, float out[24]) {
     p.feed((const char*)d, n);
     return true;
   });
-  if (r.ok() && p.count() == 0) r.error = "bad servlet data";
+  if (r.ok() && p.count() == 0) r.error = "неверные почасовые данные";
   setErr(r);
   return r.ok() ? p.count() : 0;
 }

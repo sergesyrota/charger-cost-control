@@ -1,5 +1,5 @@
 // Event log: /events.log on LittleFS, last ~500 lines (PLAN §9.3). Owner: store.
-// Each entry: epoch (0 if no clock) + uptime seconds + kind + UTF-8 message (<= 160 bytes).
+// Each entry: epoch (0 if no clock) + uptime seconds + kind + UTF-8 message (<= 255 bytes, Russian).
 // Also echoed to Serial. Thread-safe (add() may be called from any task).
 #pragma once
 #include <stddef.h>

@@ -126,8 +126,8 @@ void disconnect() {
 
 const char* errName(obd::ElmStatus s) {
   switch (s) {
-    case obd::ElmStatus::Timeout: return "timeout";
-    case obd::ElmStatus::Malformed: return "bad reply";
+    case obd::ElmStatus::Timeout: return "таймаут";
+    case obd::ElmStatus::Malformed: return "неверный ответ";
     case obd::ElmStatus::CommandError: return "ERROR";
     default: return "";
   }
@@ -164,7 +164,7 @@ bool poll(CarSnapshot& io, const PollOpts& opts, int64_t now) {
 
   netlock::Guard lock("car", kLockTimeoutMs);
   if (!lock.ok()) {
-    strlcpy(io.error, "network busy", sizeof(io.error));
+    strlcpy(io.error, "сеть занята", sizeof(io.error));
     return false;
   }
   s_busy = true;
@@ -175,7 +175,7 @@ bool poll(CarSnapshot& io, const PollOpts& opts, int64_t now) {
     io.status = CarStatus::NotDetected;
     io.soc_live = false;
     io.volts = io.amps = io.watts = NAN;
-    strlcpy(io.error, "dongle not found", sizeof(io.error));
+    strlcpy(io.error, "адаптер не найден", sizeof(io.error));
     s_busy = false;
     return false;
   }
@@ -189,7 +189,7 @@ bool poll(CarSnapshot& io, const PollOpts& opts, int64_t now) {
     io.status = CarStatus::NotDetected;
     io.soc_live = false;
     io.volts = io.amps = io.watts = NAN;
-    strlcpy(io.error, "dongle GATT setup failed", sizeof(io.error));
+    strlcpy(io.error, "ошибка настройки GATT адаптера", sizeof(io.error));
     s_busy = false;
     return false;
   }
@@ -210,7 +210,7 @@ bool poll(CarSnapshot& io, const PollOpts& opts, int64_t now) {
   } else {
     io.soc_live = false;
     if (!online && soc.status != obd::ElmStatus::CommandError)  // ERROR = asleep, normal
-      snprintf(io.error, sizeof(io.error), "SOC: %s", errName(soc.status));
+      snprintf(io.error, sizeof(io.error), "заряд: %s", errName(soc.status));
   }
 
   if (online) {
@@ -220,7 +220,7 @@ bool poll(CarSnapshot& io, const PollOpts& opts, int64_t now) {
     io.amps = obd::packAmps(ri);
     if (!isnan(io.volts) && !isnan(io.amps)) watts = io.volts * io.amps;
     io.watts = watts;
-    if (isnan(watts)) strlcpy(io.error, "power read failed", sizeof(io.error));
+    if (isnan(watts)) strlcpy(io.error, "не удалось прочитать мощность", sizeof(io.error));
 
     if (opts.extras) {
       float ah = obd::capacityAh(ses.cmd(obd::kCapacity));

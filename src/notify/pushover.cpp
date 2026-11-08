@@ -10,6 +10,7 @@
 
 #include "net/https_client.h"
 #include "store/event_log.h"
+#include "util/utf8.h"
 
 namespace pushover {
 
@@ -19,7 +20,6 @@ static const char* kUrl = "https://api.pushover.net/1/messages.json";
 static constexpr uint32_t kRetryMs[] = {60000, 300000, 900000};
 static constexpr uint8_t kMaxTries = sizeof(kRetryMs) / sizeof(kRetryMs[0]);
 static constexpr uint32_t kWaitMs = 30000;
-static constexpr size_t kMsgMax = 300;
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static bool s_enabled = false;
@@ -81,6 +81,7 @@ static void setErr(char* err, uint16_t cap, const char* fmt, ...) {
   va_start(ap, fmt);
   vsnprintf(err, cap, fmt, ap);
   va_end(ap);
+  utf8FixTail(err);
 }
 
 bool sendNow(const char* msg, char* err, uint16_t err_cap) {
@@ -94,7 +95,7 @@ bool sendNow(const char* msg, char* err, uint16_t err_cap) {
   memcpy(device, s_device, sizeof(device));
   portEXIT_CRITICAL(&s_mux);
   if (!ok) {
-    setErr(err, err_cap, "Pushover not configured");
+    setErr(err, err_cap, "Pushover не настроен");
     return false;
   }
 
@@ -129,7 +130,7 @@ bool sendNow(const char* msg, char* err, uint16_t err_cap) {
 
   if (r.status == 200 && !*r.error) return true;
   if (r.status <= 0) {
-    setErr(err, err_cap, "%s", *r.error ? r.error : "transport error");
+    setErr(err, err_cap, "%s", *r.error ? r.error : https::kErrTransport);
     return false;
   }
   // Pushover: {"errors":["application token is invalid"],"status":0,...}
@@ -147,7 +148,7 @@ bool sendNow(const char* msg, char* err, uint16_t err_cap) {
 }
 
 void loop() {
-  static Slot job;  // ~300 B: keep off the loop-task stack
+  static Slot job;  // ~0.5 KB: keep off the loop-task stack
   bool have = false;
   uint32_t now = millis();
   portENTER_CRITICAL(&s_mux);
@@ -160,12 +161,12 @@ void loop() {
   portEXIT_CRITICAL(&s_mux);
   if (!have) return;
 
-  char err[80] = "";
+  char err[160] = "";
   bool ok = sendNow(job.msg, err, sizeof(err));
   bool configured = ready();
 
-  const bool waiting = !ok && (strcmp(err, "no network") == 0 || strcmp(err, "clock not set") == 0 ||
-                                strcmp(err, "network busy") == 0);
+  const bool waiting = !ok && (strcmp(err, https::kErrNoNetwork) == 0 || strcmp(err, https::kErrNoClock) == 0 ||
+                                strcmp(err, https::kErrBusy) == 0);
   uint32_t retry_ms = 0;
   portENTER_CRITICAL(&s_mux);
   // queue() may have shifted/dropped slots while we were sending: find ours by sequence number.
@@ -189,10 +190,10 @@ void loop() {
   }
   portEXIT_CRITICAL(&s_mux);
 
-  if (ok) evlog::add(evlog::Kind::Push, "Sent: %s", job.msg);
+  if (ok) evlog::add(evlog::Kind::Push, "Отправлено: %s", job.msg);
   else if (waiting) return;  // quiet: re-tried every 30 s until the network/clock is back
-  else if (retry_ms) evlog::add(evlog::Kind::Err, "Pushover failed (%s), retry in %u min", err, (unsigned)(retry_ms / 60000));
-  else evlog::add(evlog::Kind::Err, "Pushover failed (%s), dropped", err);
+  else if (retry_ms) evlog::add(evlog::Kind::Err, "Pushover: ошибка (%s), повтор через %u мин", err, (unsigned)(retry_ms / 60000));
+  else evlog::add(evlog::Kind::Err, "Pushover: ошибка (%s), сообщение отброшено", err);
 }
 
 // ---------------------------------------------------------------- formatting
@@ -209,7 +210,7 @@ struct Out {
     int n = vsnprintf(p + len, cap - len, fmt, ap);
     va_end(ap);
     if (n > 0) len += (size_t)n;
-    if (len >= cap) len = cap - 1;
+    if (len >= cap) len = utf8FixTail(p);  // truncated: never end in half a character
   }
 };
 
@@ -222,10 +223,10 @@ void addReason(Out& o, const Decision& d) {  // without trailing '.'/' '
 void addSoc(Out& o, float soc) { o.add("%d%%", (int)lroundf(soc)); }
 
 void addAge(Out& o, int64_t secs) {
-  if (secs < 60) o.add("just now");
-  else if (secs < 3600) o.add("%dm ago", (int)(secs / 60));
-  else if (secs < 2 * 86400) o.add("%dh ago", (int)(secs / 3600));
-  else o.add("%dd ago", (int)(secs / 86400));
+  if (secs < 60) o.add("только что");
+  else if (secs < 3600) o.add("%d мин назад", (int)(secs / 60));
+  else if (secs < 2 * 86400) o.add("%d ч назад", (int)(secs / 3600));
+  else o.add("%d дн. назад", (int)(secs / 86400));
 }
 }  // namespace
 
@@ -233,18 +234,18 @@ void formatOn(const Decision& d, bool manual, const CarSnapshot& car, char* out,
   if (!out || !cap) return;
   out[0] = 0;
   Out o{out, cap, 0};
-  o.add("%sON: ", manual ? "Manual: " : "");
+  o.add("%sВКЛ: ", manual ? "Вручную: " : "");
   addReason(o, d);
   if (d.src == DecisionSrc::Price && d.state[0]) {
     o.add(" — Bolt/%s", d.state);
-    if (!isnan(d.block_soc)) o.add(" soc≥%g", (double)d.block_soc);
+    if (!isnan(d.block_soc)) o.add(", от %g%%", (double)d.block_soc);
   }
   o.add(". ");
   bool soc = !isnan(car.soc) && car.soc_live;
   switch (car.status) {
     case CarStatus::Charging:
-      if (!isnan(car.watts)) o.add("Charging started: %.1f kW", fabsf(car.watts) / 1000.0f);
-      else o.add("Charging started");
+      if (!isnan(car.watts)) o.add("Зарядка началась: %.1f кВт", fabsf(car.watts) / 1000.0f);
+      else o.add("Зарядка началась");
       if (soc) {
         o.add(", ");
         addSoc(o, car.soc);
@@ -253,7 +254,7 @@ void formatOn(const Decision& d, bool manual, const CarSnapshot& car, char* out,
       break;
     case CarStatus::Online:
     case CarStatus::Asleep:
-      o.add("Car connected, not charging");
+      o.add("Машина на связи, но не заряжается");
       if (soc) {
         o.add(" (");
         addSoc(o, car.soc);
@@ -262,7 +263,7 @@ void formatOn(const Decision& d, bool manual, const CarSnapshot& car, char* out,
       o.add(".");
       break;
     default:
-      o.add("Car not detected.");
+      o.add("Машина не найдена.");
       break;
   }
 }
@@ -271,7 +272,7 @@ void formatOff(const Decision& d, bool manual, const CarSnapshot& car, int64_t n
   if (!out || !cap) return;
   out[0] = 0;
   Out o{out, cap, 0};
-  o.add("%sOFF: ", manual ? "Manual: " : "");
+  o.add("%sВЫКЛ: ", manual ? "Вручную: " : "");
   addReason(o, d);
   if (d.src == DecisionSrc::Price) {
     if (d.state[0]) o.add(", Bolt/%s", d.state);

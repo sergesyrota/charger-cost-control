@@ -50,7 +50,7 @@ const State* LogicConfig::find(const std::string& name) const {
 static void err(std::vector<std::string>* errors, const std::string& name, const char* fmt, int i,
                 const char* extra = nullptr) {
   if (!errors) return;
-  char buf[128];
+  char buf[192];
   if (extra) snprintf(buf, sizeof buf, fmt, i, extra);
   else snprintf(buf, sizeof buf, fmt, i);
   errors->push_back(name + ": " + buf);
@@ -74,7 +74,7 @@ bool fromJson(JsonVariantConst in, LogicConfig& out, std::vector<std::string>* e
   JsonObjectConst root = in.as<JsonObjectConst>();
   JsonObjectConst states = root.isNull() ? JsonObjectConst() : root["states"].as<JsonObjectConst>();
   if (states.isNull()) {
-    if (errors) errors->push_back("Missing \"states\" object");
+    if (errors) errors->push_back("Нет объекта \"states\"");
     return false;
   }
   bool ok = true;
@@ -82,41 +82,41 @@ bool fromJson(JsonVariantConst in, LogicConfig& out, std::vector<std::string>* e
 
   LogicConfig cfg;
   if (states.size() == 0) {
-    if (errors) errors->push_back("At least one state is required");
+    if (errors) errors->push_back("Нужно хотя бы одно состояние");
     fail();
   }
   if (states.size() > kMaxStates) {
-    if (errors) errors->push_back("Too many states (max 16)");
+    if (errors) errors->push_back("Слишком много состояний (максимум 16)");
     fail();
   }
   for (JsonPairConst kv : states) {
     State st;
     st.name = kv.key().c_str();
     const std::string& n = st.name;
-    if (st.name.empty()) { err(errors, n, "state name can't be empty", 0); fail(); }
-    if (st.name.size() >= kStateNameMax) { err(errors, n, "name is too long (max %d bytes)", (int)kStateNameMax - 1); fail(); }
-    if (cfg.find(st.name)) { err(errors, n, "duplicate state", 0); fail(); continue; }
+    if (st.name.empty()) { err(errors, n, "имя состояния не может быть пустым", 0); fail(); }
+    if (st.name.size() >= kStateNameMax) { err(errors, n, "имя слишком длинное (максимум %d байт)", (int)kStateNameMax - 1); fail(); }
+    if (cfg.find(st.name)) { err(errors, n, "состояние повторяется", 0); fail(); continue; }
     JsonObjectConst so = kv.value().as<JsonObjectConst>();
-    if (so.isNull()) { err(errors, n, "must be an object", 0); fail(); continue; }
+    if (so.isNull()) { err(errors, n, "должно быть объектом", 0); fail(); continue; }
 
     JsonVariantConst cs = so["entry_conditions"];
     if (!cs.isUnbound() && !cs.isNull()) {
       JsonArrayConst ca = cs.as<JsonArrayConst>();
-      if (ca.isNull()) { err(errors, n, "entry_conditions must be a list", 0); fail(); }
+      if (ca.isNull()) { err(errors, n, "entry_conditions должен быть списком", 0); fail(); }
       else {
-        if (ca.size() > kMaxConds) { err(errors, n, "too many conditions (max %d)", (int)kMaxConds); fail(); }
+        if (ca.size() > kMaxConds) { err(errors, n, "слишком много условий (максимум %d)", (int)kMaxConds); fail(); }
         int i = 0;
         for (JsonVariantConst c : ca) {
           ++i;
           Cond cond;
           const char* type = c["type"].as<const char*>();
-          if (!type || strcmp(type, "soc") != 0) { err(errors, n, "condition %d type must be \"soc\"", i); fail(); }
+          if (!type || strcmp(type, "soc") != 0) { err(errors, n, "условие %d: type должен быть \"soc\"", i); fail(); }
           if (!opFromName(c["operator"].as<const char*>(), cond.op)) {
-            err(errors, n, "condition %d operator must be one of > >= < <=", i); fail();
+            err(errors, n, "условие %d: operator должен быть одним из > >= < <=", i); fail();
           }
           JsonVariantConst v = c["value"];
           if (!isNum(v) || v.as<float>() < 0 || v.as<float>() > 100) {
-            err(errors, n, "condition %d value must be 0–100", i); fail();
+            err(errors, n, "условие %d: value должно быть 0–100", i); fail();
           } else cond.value = v.as<float>();
           st.entry.push_back(cond);
         }
@@ -126,24 +126,24 @@ bool fromJson(JsonVariantConst in, LogicConfig& out, std::vector<std::string>* e
     JsonVariantConst bl = so["charging_logic"];
     if (!bl.isUnbound() && !bl.isNull()) {
       JsonArrayConst ba = bl.as<JsonArrayConst>();
-      if (ba.isNull()) { err(errors, n, "charging_logic must be a list", 0); fail(); }
+      if (ba.isNull()) { err(errors, n, "charging_logic должен быть списком", 0); fail(); }
       else {
         st.has_blocks_key = true;
-        if (ba.size() > kMaxBlocks) { err(errors, n, "too many blocks (max %d)", (int)kMaxBlocks); fail(); }
+        if (ba.size() > kMaxBlocks) { err(errors, n, "слишком много диапазонов (максимум %d)", (int)kMaxBlocks); fail(); }
         int i = 0;
         for (JsonVariantConst b : ba) {
           ++i;
           Block blk;
           JsonVariantConst s = b["soc"];
           if (!isNum(s) || s.as<float>() < 0 || s.as<float>() > 100) {
-            err(errors, n, "block %d soc must be 0–100", i); fail();
+            err(errors, n, "диапазон %d: soc должен быть 0–100", i); fail();
           } else blk.soc = s.as<float>();
-          if (!parsePrice(b["price_on"], blk.on)) { err(errors, n, "block %d %s must be a number or \"min\"", i, "price_on"); fail(); }
-          if (!parsePrice(b["price_off"], blk.off)) { err(errors, n, "block %d %s must be a number or \"min\"", i, "price_off"); fail(); }
+          if (!parsePrice(b["price_on"], blk.on)) { err(errors, n, "диапазон %d: %s должен быть числом или \"min\"", i, "price_on"); fail(); }
+          if (!parsePrice(b["price_off"], blk.off)) { err(errors, n, "диапазон %d: %s должен быть числом или \"min\"", i, "price_off"); fail(); }
           JsonVariantConst km = b["known_minutes"];
           if (!km.isUnbound() && !km.isNull()) {
             if (!km.is<int>() || km.as<int>() < 0 || km.as<int>() > 59) {
-              err(errors, n, "block %d known_minutes must be 0–59", i); fail();
+              err(errors, n, "диапазон %d: known_minutes должен быть 0–59", i); fail();
             } else blk.known_minutes = (uint8_t)km.as<int>();
           }
           st.blocks.push_back(blk);
@@ -157,11 +157,11 @@ bool fromJson(JsonVariantConst in, LogicConfig& out, std::vector<std::string>* e
   if (!sel.isUnbound() && !sel.isNull()) {
     const char* s = sel.as<const char*>();
     if (!s) {
-      if (errors) errors->push_back("state_select must be a string");
+      if (errors) errors->push_back("state_select должен быть строкой");
       fail();
     } else if (*s) {
       if (!cfg.find(s)) {
-        if (errors) errors->push_back(std::string("state_select “") + s + "” is not a state");
+        if (errors) errors->push_back(std::string("state_select: состояния «") + s + "» нет");
         fail();
       } else cfg.state_select = s;
     }
@@ -174,7 +174,7 @@ bool fromJson(JsonVariantConst in, LogicConfig& out, std::vector<std::string>* e
 bool parse(const char* json, size_t len, LogicConfig& out, std::vector<std::string>* errors) {
   JsonDocument doc;
   if (deserializeJson(doc, json, len)) {
-    if (errors) errors->push_back("invalid JSON");
+    if (errors) errors->push_back("некорректный JSON");
     return false;
   }
   return fromJson(doc.as<JsonVariantConst>(), out, errors);
@@ -275,8 +275,8 @@ std::vector<std::string> overlapWarnings(const LogicConfig& cfg) {
       fmtNum(hi, sizeof hi, x.hi);
       if (x.lo == x.hi) snprintf(range, sizeof range, "%s%%", lo);
       else snprintf(range, sizeof range, "%s%s–%s%s%%", x.li ? "[" : "(", lo, hi, x.hi_ ? "]" : ")");
-      out.push_back("“" + st[i]->name + "” and “" + st[j]->name + "” both match at battery " + range +
-                    " — the first in order wins, the state may flip");
+      out.push_back("«" + st[i]->name + "» и «" + st[j]->name + "» оба подходят при заряде " + range +
+                    " — выигрывает первое по порядку, состояние может переключаться туда-обратно");
     }
   return out;
 }

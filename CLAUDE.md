@@ -47,7 +47,7 @@ HTML/JS file `web/index.html` (design: `prototypes/option-5-app.html`), gzipped 
   `variants/supermini` (no RGB_BUILTIN → no RMT), linker `--wrap`s in `src/size_wraps.c` (error names
   print as numeric codes).
 - `tools/version.py` (FW_VERSION from `git describe`), `tools/build_ui.py` (light minify + gzip,
-  UI ≈ 33 KB gz) — pre-build hooks. `tools/make_release.py` writes `dist/` (gitignored).
+  UI ≈ 37 KB gz) — pre-build hooks. `tools/make_release.py` writes `dist/` (gitignored).
 
 ## Commands
 PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it globally).
@@ -75,8 +75,13 @@ PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it glob
   honored literally (`>` strict, `>=` inclusive); the PHP's "everything inclusive" was a bug.
 - Hotspot runs only when there are no Wi-Fi credentials or STA has been down for 5 min; never
   alongside a working STA connection.
+- Language: everything the owner sees is **Russian** (UI, decision reasons, event log, Pushover,
+  API error texts); serial-only debug output stays English. API keys/enums/JSON field names stay
+  English — the UI maps them to Russian labels. Russian is 2 bytes/letter: size fixed buffers for it
+  and pass any possibly-truncated text through `utf8FixTail()` (`lib/core/src/util/utf8.h`) so it
+  never ends in half a character. Prices use `¢`, times are 24 h, weeks start on Monday.
 - OTA default manifest: `https://github.com/sergesyrota/charger-cost-control/releases/latest/download/manifest.json`.
-- Keep the image lean: `firmware.bin` is 1.63 MB = 85.6 % of the 1.81 MB app slot (partitions.csv,
+- Keep the image lean: `firmware.bin` is 1.64 MB = 86.1 % of the 1.81 MB app slot (partitions.csv,
   no coredump partition). Check the real .bin size, not PlatformIO's "Flash:" line. No
   std::regex/iostream, no new libraries without asking. Tests are sparse: only high-value
   pure-logic cases.

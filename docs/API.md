@@ -10,6 +10,9 @@ Ownership map and module rules: [`docs/MODULES.md`](MODULES.md). Owners: **web_a
 - Times are **UTC epoch seconds**; `null` when unknown (no clock). The UI renders Chicago time using
   `tz_offset_s` from `/api/status` (not the browser zone).
 - Prices: supply-only **¢/kWh**, one decimal. Unknown numbers are `null` (C++ `NAN`).
+- Human-readable texts (`error`, `errors`, `decision.reason`, `warnings`, job/car/price/OTA errors, log
+  `msg`, `reset_reason`) are **Russian** UTF-8. Keys, enums and field names stay English (`manual_on`,
+  `not_detected`, …); the UI maps enums to Russian labels itself.
 - Errors: 4xx/5xx with `{"error": "human message"}`; validation errors may add `"errors": ["…"]`.
   400 bad input · 404 unknown route · 409 busy/conflict · 503 needs clock/not ready.
 - Async actions return **202** `{"queued": true, "seq": 7}`; progress/results appear in `GET /api/status`
@@ -30,7 +33,7 @@ Everything the Home screen, mode sheet, price sheet and Diagnostics need.
   "clock_valid": true,
   "tz_offset_s": -21600,           // Chicago offset now (CST -21600 / CDT -18000)
   "uptime_s": 278000,
-  "reset_reason": "Software reset",
+  "reset_reason": "Программный сброс",
 
   "relay": true,                   // commanded state (true = charger enabled)
   "relay_default": false,          // cfg.default_relay
@@ -40,7 +43,7 @@ Everything the Home screen, mode sheet, price sheet and Diagnostics need.
 
   "decision": {
     "src": "price",                // default | manual | overlay | schedule | price
-    "reason": "Price is low (1.2¢ ≤ 2¢)",
+    "reason": "Цена низкая (1.2¢ ≤ 2¢)",
     "state": "Заряд",              // price-logic state used ("" if not price)
     "how": "entered",              // "" | forced | entered | sticky
     "block": 2,                    // index into that state's charging_logic (-1 none)
@@ -179,7 +182,7 @@ GET:
 ```json
 {
   "logic": { "state_select": "Поездка", "states": { "Разряд": { "entry_conditions": [ … ], "charging_logic": [ … ] }, … } },
-  "warnings": ["“Разряд” and “Заряд” both match at battery 80% — the first in order wins, the state may flip"],
+  "warnings": ["«Разряд» и «Заряд» оба подходят при заряде 80% — выигрывает первое по порядку, состояние может переключаться туда-обратно"],
   "sticky_state": "Заряд",
   "min_offset": 0.5,
   "min_price": 0.9
@@ -191,7 +194,7 @@ significant and preserved. `state_select` omitted/`""` = auto. `price_on`/`price
 
 PUT body: the logic object itself (same shape as `logic`). Server validates, sorts each state's
 blocks by `soc` descending, persists, re-evaluates. Response 200 = the GET body. Invalid → 400
-`{"error": "invalid logic", "errors": ["Заряд: block 2 price_on must be a number or \"min\"", …]}`.
+`{"error": "ошибки в правилах", "errors": ["Заряд: диапазон 2: price_on должен быть числом или \"min\"", …]}`.
 Overlaps are warnings only (still saved). `min_offset` is saved via `PUT /api/config`.
 
 ## POST /api/override
@@ -201,7 +204,9 @@ Overlaps are warnings only (still saved). `min_offset` is saved via `PUT /api/co
 ```
 Response 200 `{"mode": "manual_on", "until": 1794128400, "relay": true, "reason": "…"}`.
 400 unknown mode / until in the past / until on a non-manual mode; 503 `until` without a valid clock.
-`{"mode": "auto"}` clears any override.
+`{"mode": "auto"}` clears any override. The UI offers Manual ON/OFF until the end of the current hour (+0),
+the next hour (+1), three hours ahead (+3), until 07:00, or indefinitely; it computes those `until` epochs
+from `now` + `tz_offset_s` (Chicago hour boundaries), the server just takes the epoch.
 
 ## Stats (chunked JSON arrays)
 
@@ -219,7 +224,7 @@ Defaults: `from` = now − 24 h, `to` = now, `limit` = 20, `days` = 14, `months`
 
 ## GET /api/log?limit=100&kind=relay
 
-Newest first: `[{"t": 1794089400, "up": 277800, "k": "relay", "msg": "Relay ON: Price is low (1.2¢ ≤ 3¢) — Bolt/Поездка (forced)"}]`.
+Newest first: `[{"t": 1794089400, "up": 277800, "k": "relay", "msg": "ВКЛ: Цена низкая (1.2¢ ≤ 3¢)"}]`.
 `t` null when logged before NTP (UI shows `+HH:MM:SS` uptime). `k`: sys | relay | state | push | car | price | err.
 `kind` filter optional (`relay` also includes `state`, like the prototype filter). Default limit 100, max 500.
 

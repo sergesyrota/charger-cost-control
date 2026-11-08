@@ -14,6 +14,7 @@
 #include "net/https_client.h"
 #include "net/net_lock.h"
 #include "store/event_log.h"
+#include "util/utf8.h"
 
 // Arduino core (esp32-hal-misc.c) marks the app valid at boot unless this returns true. We validate
 // ourselves after the health checks (PLAN §12).
@@ -46,11 +47,12 @@ static void setPhase(Phase ph) {
 
 static bool fail(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 static bool fail(const char* fmt, ...) {
-  char e[80];
+  char e[sizeof(s_p.error)];
   va_list ap;
   va_start(ap, fmt);
   vsnprintf(e, sizeof(e), fmt, ap);
   va_end(ap);
+  utf8FixTail(e);
   portENTER_CRITICAL(&s_mux);
   s_p.phase = Phase::Error;
   memcpy(s_p.error, e, sizeof(e));
@@ -110,14 +112,14 @@ int compareVersions(const char* a, const char* b, bool* ok) {
 }
 
 bool check(const char* url) {
-  if (!isHttps(url)) return fail("URL must be https://");
+  if (!isHttps(url)) return fail("адрес должен начинаться с https://");
   setPhase(Phase::Checking);
 
   static Manifest m;  // keep off the stack
   m = Manifest();
 
   if (endsWithBin(url)) {
-    if (strlen(url) >= sizeof(m.url)) return fail("URL too long");
+    if (strlen(url) >= sizeof(m.url)) return fail("адрес слишком длинный");
     copyStr(m.url, sizeof(m.url), url);
     m.direct_bin = true;
   } else {
@@ -134,21 +136,21 @@ bool check(const char* url) {
       return true;
     });
     buf[len] = 0;
-    if (overflow) return fail("Manifest too large");
+    if (overflow) return fail("манифест слишком большой");
     if (!r.ok()) {
-      if (r.status > 0) return fail("Manifest HTTP %d", r.status);
-      return fail("Manifest fetch: %s", *r.error ? r.error : "transport error");
+      if (r.status > 0) return fail("манифест: HTTP %d", r.status);
+      return fail("манифест: %s", *r.error ? r.error : https::kErrTransport);
     }
     JsonDocument doc;
-    if (deserializeJson(doc, buf, len)) return fail("Manifest is not valid JSON");
+    if (deserializeJson(doc, buf, len)) return fail("манифест — некорректный JSON");
     const char* ver = doc["version"] | "";
     const char* bin = doc["url"] | "";
     const char* sha = doc["sha256"] | "";
     const char* notes = doc["notes"] | "";
     uint32_t size = doc["size"] | 0u;
-    if (!*ver || strlen(ver) >= sizeof(m.version)) return fail("Manifest: bad version");
-    if (!isHttps(bin) || strlen(bin) >= sizeof(m.url)) return fail("Manifest: url must be https://");
-    if (!isHex64(sha)) return fail("Manifest: bad sha256");
+    if (!*ver || strlen(ver) >= sizeof(m.version)) return fail("манифест: неверная версия");
+    if (!isHttps(bin) || strlen(bin) >= sizeof(m.url)) return fail("манифест: url должен начинаться с https://");
+    if (!isHex64(sha)) return fail("манифест: неверный sha256");
     copyStr(m.version, sizeof(m.version), ver);
     copyStr(m.url, sizeof(m.url), bin);
     for (int i = 0; i < 64; i++) m.sha256[i] = (char)tolower((unsigned char)sha[i]);
@@ -158,8 +160,8 @@ bool check(const char* url) {
   }
 
   const esp_partition_t* next = esp_ota_get_next_update_partition(nullptr);
-  if (!next) return fail("No OTA partition");
-  if (m.size && m.size > next->size) return fail("Image too large (%u > %u)", (unsigned)m.size, (unsigned)next->size);
+  if (!next) return fail("нет раздела для OTA");
+  if (m.size && m.size > next->size) return fail("образ слишком большой (%u > %u)", (unsigned)m.size, (unsigned)next->size);
 
   Phase ph = Phase::Available;
   if (!m.direct_bin) {
@@ -175,8 +177,8 @@ bool check(const char* url) {
   s_p.total = m.size;
   s_p.error[0] = 0;
   portEXIT_CRITICAL(&s_mux);
-  if (m.direct_bin) evlog::add(evlog::Kind::Sys, "OTA: direct .bin (no sha256 check)");
-  else evlog::add(evlog::Kind::Sys, "OTA: manifest %s (running %s) -> %s", m.version, FW_VERSION, phaseName(ph));
+  if (m.direct_bin) evlog::add(evlog::Kind::Sys, "OTA: прямой .bin (без проверки sha256)");
+  else evlog::add(evlog::Kind::Sys, "OTA: в манифесте %s (сейчас %s) → %s", m.version, FW_VERSION, ph == Phase::Available ? "есть обновление" : "обновлений нет");
   return true;
 }
 
@@ -200,24 +202,24 @@ bool install(const char* url) {
   bool have = s_p.has_manifest;
   if (have) m = s_p.manifest;
   portEXIT_CRITICAL(&s_mux);
-  if (!have) return fail("No manifest checked");
-  if (!isHttps(m.url)) return fail("URL must be https://");
+  if (!have) return fail("манифест не проверен");
+  if (!isHttps(m.url)) return fail("адрес должен начинаться с https://");
 
   // With rollback enabled esp_ota_begin() refuses while the running image is unconfirmed.
-  if (pendingVerify()) return fail("Running firmware not confirmed yet (health check pending); retry in a few min");
+  if (pendingVerify()) return fail("текущая прошивка ещё не подтверждена (идёт проверка); повторите через несколько минут");
 
   netlock::Guard lock("ota", 60000);
-  if (!lock.ok()) return fail("Network busy");
+  if (!lock.ok()) return fail("сеть занята");
 
   const esp_partition_t* part = esp_ota_get_next_update_partition(nullptr);
-  if (!part) return fail("No OTA partition");
+  if (!part) return fail("нет раздела для OTA");
 
   static Dl dl;
   dl = Dl();
   dl.expect = m.size;
   dl.cap = part->size;
   esp_err_t be = esp_ota_begin(part, OTA_WITH_SEQUENTIAL_WRITES, &dl.h);
-  if (be != ESP_OK) return fail("esp_ota_begin failed (%s)", esp_err_to_name(be));
+  if (be != ESP_OK) return fail("ошибка esp_ota_begin (%s)", esp_err_to_name(be));
   mbedtls_sha256_init(&dl.sha);
   mbedtls_sha256_starts(&dl.sha, 0);
 
@@ -227,18 +229,18 @@ bool install(const char* url) {
   s_p.total = m.size;
   s_p.error[0] = 0;
   portEXIT_CRITICAL(&s_mux);
-  evlog::add(evlog::Kind::Sys, "OTA: installing %s into %s", m.direct_bin ? "direct .bin" : m.version, part->label);
+  evlog::add(evlog::Kind::Sys, "OTA: установка %s в %s", m.direct_bin ? "прямого .bin" : m.version, part->label);
 
   https::Result r = https::get(
       m.url,
       [](const uint8_t* d, size_t n) {
         if (dl.err) return false;
         if (dl.bytes + n > dl.cap || (dl.expect && dl.bytes + n > dl.expect)) {
-          dl.err = "Image larger than expected";
+          dl.err = "образ больше ожидаемого";
           return false;
         }
         if (esp_ota_write(dl.h, d, n) != ESP_OK) {
-          dl.err = "Flash write failed";
+          dl.err = "ошибка записи во flash";
           return false;
         }
         mbedtls_sha256_update(&dl.sha, d, n);
@@ -251,7 +253,7 @@ bool install(const char* url) {
       30000,
       [](int status, int32_t clen) {
         if (status >= 200 && status < 300 && clen > 0) {
-          if (dl.expect && (uint32_t)clen != dl.expect) dl.err = "Size mismatch (Content-Length)";
+          if (dl.expect && (uint32_t)clen != dl.expect) dl.err = "размер не совпадает (Content-Length)";
           portENTER_CRITICAL(&s_mux);
           if (!s_p.total) s_p.total = (uint32_t)clen;
           portEXIT_CRITICAL(&s_mux);
@@ -266,30 +268,30 @@ bool install(const char* url) {
   if (dl.err || !r.ok()) {
     esp_ota_abort(dl.h);
     if (dl.err) return fail("%s", dl.err);
-    if (r.status > 0 && (r.status < 200 || r.status >= 300)) return fail("Download HTTP %d", r.status);
-    return fail("Download: %s", *r.error ? r.error : "transport error");
+    if (r.status > 0 && (r.status < 200 || r.status >= 300)) return fail("загрузка: HTTP %d", r.status);
+    return fail("загрузка: %s", *r.error ? r.error : https::kErrTransport);
   }
 
   setPhase(Phase::Verifying);
   if (!dl.bytes || (dl.expect && dl.bytes != dl.expect)) {
     esp_ota_abort(dl.h);
-    return fail("Size mismatch (%u of %u)", (unsigned)dl.bytes, (unsigned)dl.expect);
+    return fail("размер не совпадает (%u из %u)", (unsigned)dl.bytes, (unsigned)dl.expect);
   }
   if (!m.direct_bin) {
     char hex[65];
     for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", digest[i]);
     if (strcmp(hex, m.sha256) != 0) {
       esp_ota_abort(dl.h);
-      return fail("sha256 mismatch");
+      return fail("sha256 не совпадает");
     }
   }
   esp_err_t e = esp_ota_end(dl.h);  // validates the image header/checksum
-  if (e != ESP_OK) return fail("Image invalid (%s)", esp_err_to_name(e));
+  if (e != ESP_OK) return fail("образ повреждён (%s)", esp_err_to_name(e));
   e = esp_ota_set_boot_partition(part);
-  if (e != ESP_OK) return fail("Set boot partition failed (%s)", esp_err_to_name(e));
+  if (e != ESP_OK) return fail("не удалось выбрать загрузочный раздел (%s)", esp_err_to_name(e));
 
   setPhase(Phase::Done);
-  evlog::add(evlog::Kind::Sys, "OTA: %u bytes written to %s; reboot to apply", (unsigned)dl.bytes, part->label);
+  evlog::add(evlog::Kind::Sys, "OTA: записано %u байт в %s, применится после перезагрузки", (unsigned)dl.bytes, part->label);
   return true;
 }
 
@@ -303,12 +305,12 @@ bool pendingVerify() {
 
 void markValid() {
   if (!pendingVerify()) return;
-  if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) evlog::add(evlog::Kind::Sys, "OTA: image %s marked valid", FW_VERSION);
+  if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) evlog::add(evlog::Kind::Sys, "OTA: прошивка %s подтверждена", FW_VERSION);
 }
 
 void rollbackIfPending() {
   if (!pendingVerify()) return;
-  evlog::add(evlog::Kind::Err, "OTA: health checks not passed in time; rolling back");
+  evlog::add(evlog::Kind::Err, "OTA: проверка не пройдена вовремя, откат");
   delay(200);  // let the log line reach serial/flash
   esp_ota_mark_app_invalid_rollback_and_reboot();
 }

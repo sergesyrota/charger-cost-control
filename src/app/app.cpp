@@ -26,6 +26,7 @@
 #include "store/event_log.h"
 #include "store/state_store.h"
 #include "store/stats.h"
+#include "util/utf8.h"
 #include "web/server.h"
 
 namespace app {
@@ -83,11 +84,26 @@ uint32_t s_last_min = 0, s_last_heap = 0;
 uint32_t s_extras_day = 0;
 bool s_clock_seen = false;
 bool s_healthy = false, s_health_done = false;
-char s_price_err[48] = "";
+char s_price_err[96] = "";
 CarStatus s_last_car_status = CarStatus::Unknown;
-char s_reset[24] = "unknown";
+char s_reset[64] = "неизвестно";
 
 bool due(uint32_t at) { return (int32_t)(millis() - at) >= 0; }
+
+// Russian labels for the event log (API keys stay English: modeName() / carStatusName()).
+const char* modeRu(Mode m) {
+  static const char* const n[] = {"Авто (по цене)", "Расписание", "Расписание + цена", "Ручное ВКЛ", "Ручное ВЫКЛ"};
+  return n[(int)m];
+}
+const char* carRu(CarStatus s) {
+  static const char* const n[] = {"неизвестно", "не найдена", "спит", "на связи", "заряжается"};
+  return n[(int)s];
+}
+const char* howRu(StateHow h) {
+  static const char* const n[] = {"", "принудительно", "условие входа", "сохранено"};
+  return n[(int)h];
+}
+const char* onOff(bool on) { return on ? "ВКЛ" : "ВЫКЛ"; }
 
 int64_t jobTime() {
   int64_t t = sysclock::now();
@@ -97,7 +113,8 @@ int64_t jobTime() {
 void jobDone(Job& j, bool ok, const char* err) {
   Lock l;
   j.state = ok ? JobState::Ok : JobState::Error;
-  strlcpy(j.error, ok ? "" : (err ? err : "failed"), sizeof(j.error));
+  strlcpy(j.error, ok ? "" : (err ? err : "ошибка"), sizeof(j.error));
+  utf8FixTail(j.error);
   j.finished_at = jobTime();
 }
 
@@ -115,19 +132,19 @@ void jobRunning(Job& j) {
 
 const char* resetName(esp_reset_reason_t r) {
   switch (r) {
-    case ESP_RST_POWERON: return "Power-on";
-    case ESP_RST_EXT: return "External reset";
-    case ESP_RST_SW: return "Software reset";
-    case ESP_RST_PANIC: return "Crash (panic)";
-    case ESP_RST_INT_WDT: return "Interrupt watchdog";
-    case ESP_RST_TASK_WDT: return "Task watchdog";
+    case ESP_RST_POWERON: return "Включение питания";
+    case ESP_RST_EXT: return "Внешний сброс";
+    case ESP_RST_SW: return "Программный сброс";
+    case ESP_RST_PANIC: return "Сбой (panic)";
+    case ESP_RST_INT_WDT: return "Watchdog прерываний";
+    case ESP_RST_TASK_WDT: return "Watchdog задачи";
     case ESP_RST_WDT: return "Watchdog";
-    case ESP_RST_DEEPSLEEP: return "Deep sleep";
-    case ESP_RST_BROWNOUT: return "Brownout";
+    case ESP_RST_DEEPSLEEP: return "Глубокий сон";
+    case ESP_RST_BROWNOUT: return "Просадка питания";
     case ESP_RST_SDIO: return "SDIO";
-    case ESP_RST_USB: return "USB reset";
+    case ESP_RST_USB: return "Сброс по USB";
     case ESP_RST_JTAG: return "JTAG";
-    default: return "unknown";
+    default: return "неизвестно";
   }
 }
 
@@ -138,7 +155,7 @@ void queuePush(const char* msg) {
 void sendOnMessage() {  // under s_mx
   if (!s_on_pending) return;
   s_on_pending = false;
-  char msg[320];
+  static char msg[pushover::kMsgMax];  // under s_mx; off the (web-task) stack
   pushover::formatOn(s_on_dec, s_on_manual, s_car, msg, sizeof(msg));
   queuePush(msg);
 }
@@ -152,7 +169,7 @@ void evaluate(bool manual) {
   int64_t now = clk ? ct.epoch : 0;
 
   if (logic::overrideExpired(s_rt.ovr, clk, now)) {
-    evlog::add(evlog::Kind::Sys, "Timed %s expired → auto", modeName(s_rt.ovr.mode));
+    evlog::add(evlog::Kind::Sys, "Время режима «%s» истекло → Авто", modeRu(s_rt.ovr.mode));
     s_rt.ovr = Override();
   }
   float soc = !isnan(s_car.soc) ? s_car.soc : s_rt.last_soc;
@@ -184,7 +201,7 @@ void evaluate(bool manual) {
   s_dec = d;
 
   if (d.src == DecisionSrc::Price && d.state[0] && strcmp(d.state, s_rt.charging_state) != 0) {
-    evlog::add(evlog::Kind::State, "State %s → %s (%s)", s_rt.charging_state, d.state, stateHowName(d.how));
+    evlog::add(evlog::Kind::State, "Состояние %s → %s (%s)", s_rt.charging_state, d.state, howRu(d.how));
     strlcpy(s_rt.charging_state, d.state, sizeof(s_rt.charging_state));
   }
 
@@ -197,11 +214,11 @@ void evaluate(bool manual) {
   }
   if (boot && d.src == DecisionSrc::Default) {
     // still nothing known after boot: wait for a real decision before judging transitions
-    if (pin_change) evlog::add(evlog::Kind::Relay, "%s: %s (start-up, not notified)", d.relay ? "ON" : "OFF", d.reason);
+    if (pin_change) evlog::add(evlog::Kind::Relay, "%s: %s (запуск, без уведомления)", onOff(d.relay), d.reason);
   } else if (d.relay != was) {  // a real transition (vs. the pre-reboot relay while booting)
     s_boot_restore = false;
-    evlog::add(evlog::Kind::Relay, "%s%s: %s%s", is_manual ? "Manual: " : "", d.relay ? "ON" : "OFF", d.reason,
-               pin_change ? "" : " (after reboot)");
+    evlog::add(evlog::Kind::Relay, "%s%s: %s%s", is_manual ? "Вручную: " : "", onOff(d.relay), d.reason,
+               pin_change ? "" : " (после перезагрузки)");
     if (d.relay) {
       // ON message waits for the post-ON probe (§8.5/§10)
       s_on_pending = true;
@@ -212,7 +229,7 @@ void evaluate(bool manual) {
       s_next_poll = millis() + (uint32_t)s_cfg.probe_delay_s * 1000u;
     } else {
       if (s_on_pending) sendOnMessage();  // flapped before the probe: still report the ON
-      char msg[320];
+      static char msg[pushover::kMsgMax];  // under s_mx; off the (web-task) stack
       pushover::formatOff(d, is_manual, s_car, now, msg, sizeof(msg));
       queuePush(msg);
       s_probe = false;
@@ -221,7 +238,7 @@ void evaluate(bool manual) {
   } else {
     if (boot) s_boot_restore = false;  // first real decision agrees with the pre-reboot relay
     if (pin_change) {                  // ... and restores it: log, don't notify
-      evlog::add(evlog::Kind::Relay, "%s: %s (restored after reboot, not notified)", d.relay ? "ON" : "OFF", d.reason);
+      evlog::add(evlog::Kind::Relay, "%s: %s (восстановлено после перезагрузки, без уведомления)", onOff(d.relay), d.reason);
       s_probe = false;
       s_next_poll = millis() + (d.relay ? (uint32_t)s_cfg.probe_delay_s * 1000u : (uint32_t)s_cfg.poll_off_min * 60000u);
     }
@@ -257,8 +274,8 @@ void logPriceError() {  // loop task (the only writer of prices::lastError())
     if (strcmp(e, s_price_err) == 0) return;
     strlcpy(s_price_err, e, sizeof(s_price_err));
   }
-  if (*e) evlog::add(evlog::Kind::Price, "Price fetch failed: %s", e);
-  else evlog::add(evlog::Kind::Price, "Price fetch OK");
+  if (*e) evlog::add(evlog::Kind::Price, "Ошибка загрузки цен: %s", e);
+  else evlog::add(evlog::Kind::Price, "Цены загружены");
 }
 
 void doCarPoll(bool user) {
@@ -303,13 +320,13 @@ void doCarPoll(bool user) {
   }
   if (c.status != s_last_car_status) {
     if (isnan(c.soc))
-      evlog::add(evlog::Kind::Car, "Car %s%s%s", carStatusName(c.status), c.error[0] ? ": " : "", c.error);
+      evlog::add(evlog::Kind::Car, "Машина: %s%s%s", carRu(c.status), c.error[0] ? ", " : "", c.error);
     else
-      evlog::add(evlog::Kind::Car, "Car %s, SOC %.0f%%%s%s", carStatusName(c.status), c.soc, c.error[0] ? ", " : "",
+      evlog::add(evlog::Kind::Car, "Машина: %s, заряд %.0f%%%s%s", carRu(c.status), c.soc, c.error[0] ? ", " : "",
                  c.error);
     s_last_car_status = c.status;
   }
-  if (user) jobDone(s_jobs.car_poll, answered, c.error[0] ? c.error : "car did not answer");
+  if (user) jobDone(s_jobs.car_poll, answered, c.error[0] ? c.error : "машина не ответила");
   evaluate(false);  // §7.1 (c)
   s_stats_due = true;
 }
@@ -349,9 +366,9 @@ void runJobs() {
   }
   if (push) {
     jobRunning(s_jobs.push_test);
-    char err[80] = "";
-    bool ok = pushover::sendNow("Test from ChargerControl " FW_VERSION, err, sizeof(err));
-    evlog::add(ok ? evlog::Kind::Push : evlog::Kind::Err, "Pushover test %s%s%s", ok ? "sent" : "failed", ok ? "" : ": ", err);
+    char err[160] = "";
+    bool ok = pushover::sendNow("Тест от ChargerControl " FW_VERSION, err, sizeof(err));
+    evlog::add(ok ? evlog::Kind::Push : evlog::Kind::Err, "Тест Pushover %s%s%s", ok ? "отправлен" : "не удался", ok ? "" : ": ", err);
     jobDone(s_jobs.push_test, ok, err);
   }
   if (chk) {
@@ -362,17 +379,17 @@ void runJobs() {
   }
   if (inst) {
     jobRunning(s_jobs.ota);
-    evlog::add(evlog::Kind::Sys, "OTA install started");
+    evlog::add(evlog::Kind::Sys, "OTA: установка начата");
     bool ok = ota::install(url);
     ota::Progress p = ota::progress();
     jobDone(s_jobs.ota, ok, p.error);
     if (ok) {
-      evlog::add(evlog::Kind::Sys, "OTA installed %s, rebooting", p.manifest.version);
+      evlog::add(evlog::Kind::Sys, "OTA: установлена %s, перезагрузка", p.manifest.version);
       flushAll();
       delay(500);
       ESP.restart();
     } else {
-      evlog::add(evlog::Kind::Err, "OTA failed: %s", p.error);
+      evlog::add(evlog::Kind::Err, "OTA не удалось: %s", p.error);
     }
   }
   if (wf) {
@@ -386,7 +403,7 @@ void runJobs() {
     }
     wifi::setCredentials(ssid, pass);
     memset(pass, 0, sizeof(pass));
-    evlog::add(evlog::Kind::Sys, ssid[0] ? "Wi-Fi credentials saved for \"%s\"" : "Wi-Fi credentials cleared%s", ssid);
+    evlog::add(evlog::Kind::Sys, ssid[0] ? "Wi-Fi: сохранена сеть «%s»" : "Wi-Fi: данные сети удалены%s", ssid);
     if (!ssid[0]) {
       jobDone(s_jobs.wifi, true, nullptr);
     } else {  // finished by checkWifiJob() once STA gets an IP (or times out)
@@ -404,7 +421,7 @@ void checkWifiJob() {
     jobDone(s_jobs.wifi, true, nullptr);
   } else if (due(s_wifi_wait)) {
     s_wifi_wait = 0;
-    jobDone(s_jobs.wifi, false, "could not connect (check the password); still retrying");
+    jobDone(s_jobs.wifi, false, "не удалось подключиться (проверьте пароль); пробуем дальше");
   }
 }
 
@@ -416,13 +433,13 @@ void healthCheck() {
     fetched = s_prices.five_fetched_at != 0;
   }
   if (wifi::staConnected() && fetched && web::serving()) {
-    if (ota::pendingVerify()) evlog::add(evlog::Kind::Sys, "Health check passed; firmware marked valid");
+    if (ota::pendingVerify()) evlog::add(evlog::Kind::Sys, "Проверка работоспособности пройдена, прошивка подтверждена");
     ota::markValid();
     s_healthy = s_health_done = true;
   } else if (millis() > 5u * 60u * 1000u) {
     s_health_done = true;
     if (ota::pendingVerify()) {
-      evlog::add(evlog::Kind::Err, "Health check failed within 5 min; rolling back");
+      evlog::add(evlog::Kind::Err, "Проверка работоспособности не пройдена за 5 мин, откат");
       flushAll();
       ota::rollbackIfPending();  // reboots
     }
@@ -465,9 +482,9 @@ void setup() {
     s_car.soc = s_rt.last_soc;
     s_car.soc_at = s_rt.last_soc_at;
   }
-  evlog::add(evlog::Kind::Sys, "Boot %s, reset: %s, relay default %s", FW_VERSION, s_reset,
-             s_cfg.default_relay ? "ON" : "OFF");
-  if (ota::runningFromRollback()) evlog::add(evlog::Kind::Err, "Running from rollback (previous update failed)");
+  evlog::add(evlog::Kind::Sys, "Запуск %s, сброс: %s, реле по умолчанию %s", FW_VERSION, s_reset,
+             onOff(s_cfg.default_relay));
+  if (ota::runningFromRollback()) evlog::add(evlog::Kind::Err, "Работа после отката (прошлое обновление не удалось)");
 
   stats::begin();
   wifi::begin(s_cfg.wifi_timeout_s);
@@ -513,7 +530,7 @@ void loop() {
   if (sysclock::chicago(ct)) {
     if (!s_clock_seen) {
       s_clock_seen = true;
-      evlog::add(evlog::Kind::Sys, "Clock set (NTP)");
+      evlog::add(evlog::Kind::Sys, "Часы установлены (NTP)");
       prices::forceFiveMin();
     }
     bool changed = prices::tick(ct);  // at most one blocking fetch
@@ -554,7 +571,7 @@ void loop() {
   healthCheck();
 
   if (s_reboot_at && due(s_reboot_at)) {
-    evlog::add(evlog::Kind::Sys, "Reboot requested");
+    evlog::add(evlog::Kind::Sys, "Перезагрузка по запросу");
     flushAll();
     delay(200);
     ESP.restart();
@@ -614,36 +631,41 @@ Jobs jobs() {
 // ================================================================ actions
 bool setOverride(const Override& o, std::string& err) {
   bool manual_mode = o.mode == Mode::ManualOn || o.mode == Mode::ManualOff;
-  if (o.until && !manual_mode) return err = "until only applies to manual modes", false;
+  if (o.until && !manual_mode) return err = "until только для ручных режимов", false;
   if (o.until) {
     int64_t now = sysclock::now();
-    if (!now) return err = "clock not set yet", false;
-    if (o.until <= now) return err = "until is in the past", false;
+    if (!now) return err = "часы ещё не установлены", false;
+    if (o.until <= now) return err = "время until уже прошло", false;
   }
   Lock l;
   s_rt.ovr = o;
-  evlog::add(evlog::Kind::Sys, "Mode → %s%s", modeName(o.mode), o.until ? " (timed)" : "");
+  if (o.until) {
+    ChicagoTime u = chicagoFromEpoch(o.until);
+    evlog::add(evlog::Kind::Sys, "Режим → %s до %02u:%02u", modeRu(o.mode), u.hour, u.minute);
+  } else {
+    evlog::add(evlog::Kind::Sys, "Режим → %s", modeRu(o.mode));
+  }
   evaluate(true);
   return true;
 }
 
 bool saveConfig(const Config& c, std::string& err) {
-  if (!cfgstore::saveConfig(c)) return err = "could not save config", false;
+  if (!cfgstore::saveConfig(c)) return err = "не удалось сохранить настройки", false;
   Lock l;
   s_cfg = c;
   s_apply_cfg = true;
-  evlog::add(evlog::Kind::Sys, "Settings saved");
+  evlog::add(evlog::Kind::Sys, "Настройки сохранены");
   return true;
 }
 
 bool saveLogic(const logic::LogicConfig& lc, std::string& err) {
   logic::LogicConfig copy = lc;
   logic::sortBlocks(copy);
-  if (!cfgstore::saveLogic(copy)) return err = "could not save rules", false;
+  if (!cfgstore::saveLogic(copy)) return err = "не удалось сохранить правила", false;
   Lock l;
   s_logic = std::move(copy);
   if (!s_logic.find(s_rt.charging_state)) strlcpy(s_rt.charging_state, "default", sizeof(s_rt.charging_state));
-  evlog::add(evlog::Kind::Sys, "Charging rules saved");
+  evlog::add(evlog::Kind::Sys, "Правила зарядки сохранены");
   evaluate(false);
   return true;
 }
@@ -656,7 +678,7 @@ void requestCarPoll() {
 
 bool requestPushoverTest(std::string& err) {
   Lock l;
-  if (!s_cfg.pushover_token[0] || !s_cfg.pushover_user[0]) return err = "pushover token/user not set", false;
+  if (!s_cfg.pushover_token[0] || !s_cfg.pushover_user[0]) return err = "не заданы токен или ключ пользователя Pushover", false;
   s_push_req = true;
   jobQueued(s_jobs.push_test);
   return true;
@@ -665,8 +687,8 @@ bool requestPushoverTest(std::string& err) {
 bool requestOtaCheck(const char* url, std::string& err) {
   Lock l;
   const char* u = (url && *url) ? url : s_cfg.ota_url;
-  if (strncmp(u, "https://", 8) != 0) return err = "OTA URL must be https://", false;
-  if (strlen(u) >= sizeof(s_ota_url)) return err = "URL too long", false;
+  if (strncmp(u, "https://", 8) != 0) return err = "адрес OTA должен начинаться с https://", false;
+  if (strlen(u) >= sizeof(s_ota_url)) return err = "адрес слишком длинный", false;
   strlcpy(s_ota_url, u, sizeof(s_ota_url));
   s_ota_check_req = true;
   jobQueued(s_jobs.ota);
@@ -676,9 +698,9 @@ bool requestOtaCheck(const char* url, std::string& err) {
 bool requestOtaInstall(const char* url, std::string& err) {
   Lock l;
   const char* u = url ? url : "";
-  if (*u && strncmp(u, "https://", 8) != 0) return err = "OTA URL must be https://", false;
-  if (strlen(u) >= sizeof(s_ota_url)) return err = "URL too long", false;
-  if (!*u && !ota::progress().has_manifest) return err = "check for an update first", false;
+  if (*u && strncmp(u, "https://", 8) != 0) return err = "адрес OTA должен начинаться с https://", false;
+  if (strlen(u) >= sizeof(s_ota_url)) return err = "адрес слишком длинный", false;
+  if (!*u && !ota::progress().has_manifest) return err = "сначала проверьте наличие обновления", false;
   strlcpy(s_ota_url, u, sizeof(s_ota_url));
   s_ota_install_req = true;
   jobQueued(s_jobs.ota);
