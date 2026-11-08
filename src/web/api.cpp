@@ -716,12 +716,14 @@ void registerRoutes(AsyncWebServer& s) {
     sendRaw(r, 202, "{\"rebooting\":true}");
   });
   s.on("/api/wifi/scan", HTTP_GET, handleWifiScan);
-  onJson(s, "/api/wifi", HTTP_POST, kSmallBody, postWifi);
+  // Must precede "/api/wifi": a plain route also matches "<uri>/..." and handlers are tried in
+  // registration order, so POST /api/wifi would swallow /api/wifi/forget.
   onJson(s, "/api/wifi/forget", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject) {
     if (!wifi::hasCredentials()) return sendErr(r, 409, "сеть не сохранена");
     app::requestWifiForget();
     sendRaw(r, 202, "{\"rebooting\":true}");
   });
+  onJson(s, "/api/wifi", HTTP_POST, kSmallBody, postWifi);
 }
 
 }  // namespace api
