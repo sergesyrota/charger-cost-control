@@ -167,7 +167,7 @@ button.row:active{background:var(--line)}
 .savebar span{flex:1;font-weight:600;font-size:14px}
 .fld{display:block;margin-top:12px}
 .fld>span{display:block;font-size:12.5px;color:var(--sub);margin:0 0 5px 4px;font-weight:600}
-.fld input,.fld select,.fld textarea,.ip{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card-solid);outline:none}
+.fld input:not(.tg),.fld select,.fld textarea,.ip{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card-solid);outline:none}
 .fld input:focus,.ip:focus{border-color:var(--blu)}
 .priceinp{display:flex;gap:8px}
 .priceinp input{flex:1}
@@ -346,6 +346,8 @@ function winText(w){const d=w.days.slice().sort();
  const set=d.join(',');const ds=set==='1,2,3,4,5'?'Пн–Пт':set==='0,6'?'Сб–Вс':set==='0,1,2,3,4,5,6'?'Ежедневно':WEEK.filter(x=>d.includes(x)).map(x=>DAYN[x]).join(' ');
  return `${ds} ${w.start}–${w.end}${nn(w.max_price)?' ≤ '+fmtC(w.max_price):''}`}
 const sched=()=>(S.cfg&&S.cfg.schedule)||[];
+/* editable copy; loadCfg() resets it to null in the background, so always go through this */
+const schedDraft=()=>S.ui.sched||(S.ui.sched=clone(sched()));
 function nextWindowStart(){const n=now();if(n==null)return null;const d=cd(n),day=d.getUTCDay(),nm=d.getUTCHours()*60+d.getUTCMinutes();let best=null;
  for(let k=0;k<8;k++)for(const w of sched()){if(!w.days.includes((day+k)%7))continue;const dt=k*1440+tm(w.start)-nm;if(dt>0&&(best==null||dt<best))best=dt}
  return best==null?null:n-d.getUTCSeconds()+best*60}
@@ -508,7 +510,7 @@ SCR.settings=()=>{const c=S.cfg,s=S.st,w=s.wifi||{};return `<div class="big">Н�
  <div class="group"><div class="gh">Данные</div><div class="list card">${rowNav('history','chart','#0ca5b0','История и статистика','')}</div><div class="gf">Интерфейс устройства: http://${esc(w.ip||w.ap_ip||'192.168.4.1')} · ${esc(w.hostname||'charger.local')}. Только локальная сеть, без входа.</div></div>`};
 
 function winErr(w){if(!w.days.length)return 'Выберите хотя бы один день.';if(w.start===w.end)return 'Начало и конец не могут совпадать.';return ''}
-SCR.schedule=()=>{if(!S.cfg)return loading();if(!S.ui.sched)S.ui.sched=clone(sched());const ws=S.ui.sched,mode=S.st.mode;
+SCR.schedule=()=>{if(!S.cfg)return loading();const ws=schedDraft(),mode=S.st.mode;
  const week=WEEK.map(d=>{let bars='';for(const w of ws){if(winErr(w))continue;const s=tm(w.start)/1440*100,e=tm(w.end)/1440*100;
   if(s<e){if(w.days.includes(d))bars+=`<i style="left:${s}%;width:${e-s}%"></i>`}else{if(w.days.includes(d))bars+=`<i style="left:${s}%;right:0"></i>`;if(w.days.includes((d+6)%7))bars+=`<i style="left:0;width:${e}%"></i>`}}
   return `<span>${DAYN[d]}</span><div class="wbar">${bars}</div>`}).join('');
@@ -714,7 +716,7 @@ function markDirty(){S.ui.dirty=true}
 function rebuildStates(fn){const o={};for(const [k,v] of Object.entries(S.ui.draft.states)){const r=fn(k,v);if(r)o[r[0]]=r[1]}S.ui.draft.states=o}
 async function override(body){try{const {j}=await api('/api/override','POST',body);closeSheet();const m=MODES[j.mode]||MODES.auto;
  toast(m.t+(j.until?' до '+fmtT(j.until):body.mode.startsWith('manual')?' бессрочно':'')+' · реле '+(j.relay?'ВКЛ':'ВЫКЛ'));poll()}catch(e){toast(esc(errMsg(e)),'warn')}}
-async function saveSched(){const ws=S.ui.sched;if(ws.some(winErr)){render();return}
+async function saveSched(){const ws=schedDraft();if(ws.some(winErr)){render();return}
  const ok=await putCfg({schedule:ws},'Расписание сохранено');if(!ok){S.ui.sched=null;render()}}
 function otaPoll(){clearTimeout(S.otaT);api('/api/ota/progress').then(({j})=>{const prev=(S.ota||{}).phase,w=S.ui.otaWant;
   if(w&&(j.job==='queued'||j.job==='running')&&!OTA_ACTIVE[j.phase]&&j.phase!=='done'){S.otaT=setTimeout(otaPoll,1000);return} /* phase still from before the request */
@@ -768,9 +770,9 @@ const ACT={
   const errs=validateLogic(o);if(errs.length){el.innerHTML=errs.slice(0,6).map(esc).join('<br>');el.classList.add('show');return}
   if(!o.state_select)o.state_select='';S.ui.draft=o;S.ui.selState=null;markDirty();pop();toast('Загружено в редактор — проверьте и сохраните')},
  jsonExport:()=>{const a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(S.ui.draft||S.lg.logic,null,4));a.download='logic.json';a.click();toast('logic.json экспортирован')},
- day:t=>{const w=S.ui.sched[+t.dataset.w],d=+t.dataset.d;w.days=w.days.includes(d)?w.days.filter(x=>x!==d):[...w.days,d].sort();saveSched()},
- delWin:t=>{S.ui.sched.splice(+t.dataset.w,1);saveSched()},
- addWin:()=>{S.ui.sched.push({days:[0,6],start:'10:00',end:'14:00'});saveSched()},
+ day:t=>{const w=schedDraft()[+t.dataset.w],d=+t.dataset.d;w.days=w.days.includes(d)?w.days.filter(x=>x!==d):[...w.days,d].sort();saveSched()},
+ delWin:t=>{schedDraft().splice(+t.dataset.w,1);saveSched()},
+ addWin:()=>{schedDraft().push({days:[0,6],start:'10:00',end:'14:00'});saveSched()},
  logF:t=>{S.ui.logFilter=t.dataset.f;render()},hv:t=>{S.ui.histView=t.dataset.v;render()},logRefresh:()=>loadLog(),
  seg:t=>{t.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===t))},
  save:t=>SAVE[t.dataset.f](),
@@ -833,8 +835,8 @@ const CH={
  kmTog:t=>{$('#b_km').disabled=!t.checked;bandPrev()},
  condOp:t=>{S.ui.condDraft[+t.dataset.i].operator=t.value},
  condV:t=>{S.ui.condDraft[+t.dataset.i].value=t.value===''?NaN:+t.value;t.classList.toggle('in-bad',isNaN(+t.value)||+t.value<0||+t.value>100)},
- win:t=>{const w=S.ui.sched[+t.dataset.w];if(!t.value)return;w[t.dataset.k]=t.value;saveSched()},
- winCap:t=>{const w=S.ui.sched[+t.dataset.w],v=t.value.trim();if(v===''){w.max_price=null;saveSched();return}
+ win:t=>{const w=schedDraft()[+t.dataset.w];if(!t.value)return;w[t.dataset.k]=t.value;saveSched()},
+ winCap:t=>{const w=schedDraft()[+t.dataset.w],v=t.value.trim();if(v===''){w.max_price=null;saveSched();return}
   const n=+v;if(isNaN(n)||n<-100||n>100){t.classList.add('in-bad');toast('Макс. цена — от −100 до 100¢ или пусто','warn');return}w.max_price=Math.round(n*10)/10;saveSched()},
  overlay:t=>{S.ui.overlay=t.checked;render()},
  jsonFile:t=>{const f=t.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('#jsontxt').value=r.result;toast('Файл загружен — нажмите «Применить»','info')};r.readAsText(f)}
