@@ -114,12 +114,17 @@ NimBLERemoteCharacteristic* findChar(const char* uuid) {
   return nullptr;
 }
 
+// True while the link exists in any form. NOT isConnected(): NimBLEClient::disconnect() flips the
+// status to DISCONNECTING at once, so isConnected() goes false before the link is down. The handle
+// resets only on the real disconnect event.
+bool linkUp() { return s_client && s_client->getConnHandle() != BLE_HS_CONN_HANDLE_NONE; }
+
 void disconnect() {
   if (!s_client) return;
-  if (s_client->isConnected()) {
+  if (linkUp()) {
     s_client->disconnect();
     uint32_t t0 = millis();
-    while (s_client->isConnected() && millis() - t0 < 3000) { delay(10); wdtFeed(); }
+    while (linkUp() && millis() - t0 < 3000) { delay(10); wdtFeed(); }
   }
   s_client->deleteServices();  // free discovered attribute tables
 }
@@ -139,12 +144,24 @@ void begin() {
   if (s_inited) return;
   NimBLEDevice::init("");
   s_client = NimBLEDevice::createClient();
+  // NimBLE's client table survives deinit(); a client deinit() couldn't delete still holds the only
+  // slot. Reuse it rather than crash on nullptr.
+  if (!s_client) s_client = NimBLEDevice::getDisconnectedClient();
+  if (!s_client) {
+    Serial.println("[car] no BLE client available");
+    return;
+  }
   s_client->setConnectTimeout(kConnectTimeoutMs);
   s_inited = true;
 }
 
 void end() {
   if (!s_inited || s_busy.load()) return;
+  disconnect();
+  if (linkUp()) {  // deinit() now would leak the client (deleteClient refuses a live link)
+    Serial.println("[car] BLE link still up, keeping the stack until the next end()");
+    return;
+  }
   NimBLEDevice::deinit(true);  // frees the client and the host stack (OTA needs the RAM)
   s_client = nullptr;
   s_inited = false;
@@ -161,6 +178,10 @@ bool poll(CarSnapshot& io, const PollOpts& opts, int64_t now) {
   io.last_poll_at = now;
   io.last_poll_up_s = sysclock::uptimeS();  // 64-bit esp_timer: no 49.7-day millis() wrap
   io.error[0] = 0;
+  if (!s_inited) {
+    strlcpy(io.error, "ошибка BLE", sizeof(io.error));
+    return false;
+  }
 
   netlock::Guard lock("car", kLockTimeoutMs);
   if (!lock.ok()) {
