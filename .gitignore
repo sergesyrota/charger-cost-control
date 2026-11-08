@@ -7,3 +7,9 @@ src/web/ui_gz.h
 .venv/
 dist/
 .claude/worktrees/
+# pioarduino hybrid build (custom_sdkconfig) writes these into the project root
+/sdkconfig.*
+/CMakeLists.txt
+/dependencies.lock
+/managed_components/
+/.dummy/

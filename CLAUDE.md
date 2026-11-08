@@ -51,6 +51,11 @@ HTML/JS file `web/index.html` (design: `prototypes/option-5-app.html`), gzipped 
 
 ## Commands
 PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it globally).
+`custom_sdkconfig` in platformio.ini makes PlatformIO rebuild the Arduino libs from ESP-IDF (hybrid
+build, ~3.5 min, writes gitignored `sdkconfig.*`, `managed_components/`, `CMakeLists.txt` into the repo
+root). After changing it, the first `pio run` ends with a `.sconsign*.tmp` error — just run it again. If a
+reverted option seems stuck, delete `sdkconfig.c3`. Every option there is RAM-motivated (see PLAN.md
+"TLS heap") — re-measure (`[tlsmem]` serial lines) before changing.
 ```
 .venv/bin/pio run -e c3                 # build (also regenerates ui_gz.h, FW_VERSION)
 .venv/bin/pio run -e c3 -t upload       # USB flash (/dev/cu.usbmodem1101)

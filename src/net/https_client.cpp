@@ -8,6 +8,8 @@
 // - Refuses to run without a valid clock (certificate dates) or without a STA connection.
 #include "net/https_client.h"
 
+#include <esp_heap_caps.h>
+
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <NetworkClientSecure.h>
@@ -184,11 +186,24 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
 // One retry after a short pause when the connection/handshake failed before any body byte arrived.
 // Back-to-back TLS sessions (e.g. OTA check then install) can fail the RSA-4096 certificate check
 // with an MPI allocation error while the previous session's memory is still being released.
-Result runRetry(const char* url, const char* form, const BodyCb& body, uint32_t timeout_ms, const StartCb& on_start) {
+// Logs free memory before and the low point during each request (serial only; TLS is the
+// largest RAM consumer on this chip, a GitHub handshake can take ~100 KB).
+Result runMeasured(const char* url, const char* form, const BodyCb& body, uint32_t timeout_ms, const StartCb& on_start) {
+  size_t f0 = heap_caps_get_free_size(MALLOC_CAP_8BIT), l0 = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  heap_caps_monitor_local_minimum_free_size_start();
   Result r = run(url, form, body, timeout_ms, on_start);
+  size_t lmin = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
+  heap_caps_monitor_local_minimum_free_size_stop();
+  Serial.printf("[tlsmem] %.40s free=%u largest=%u -> min=%u used=%u status=%d %s\n", url, (unsigned)f0, (unsigned)l0,
+                (unsigned)lmin, (unsigned)(f0 - lmin), r.status, r.error);
+  return r;
+}
+
+Result runRetry(const char* url, const char* form, const BodyCb& body, uint32_t timeout_ms, const StartCb& on_start) {
+  Result r = runMeasured(url, form, body, timeout_ms, on_start);
   if (r.status < 0 && r.bytes == 0 && r.error == kErrConnect) {
     for (int i = 0; i < 30; i++) { wdtFeed(); delay(100); }
-    r = run(url, form, body, timeout_ms, on_start);
+    r = runMeasured(url, form, body, timeout_ms, on_start);
   }
   return r;
 }

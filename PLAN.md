@@ -579,6 +579,14 @@ entry-condition operators → literal strict/inclusive (§7.3); hotspot policy (
   / 43 KB largest block — not enough for TLS. Now: **~121 KB free at boot (102 KB largest), ~115 KB
   idle after BLE cycles (55 KB largest)**; min-ever ~51–55 KB during a BLE poll. Six back-to-back
   init/connect/deinit cycles showed no leak. TLS heap still unmeasured (no Wi-Fi credentials yet).
+- **TLS heap (STA, 2026-11-07):** per-request low point is logged on serial (`[tlsmem]`). Stock Arduino
+  libs: ComEd 58–78 KB per request, GitHub (OTA) hops 79–116 KB of ~118 KB free → OTA failed ~50 %
+  (`esp-x509-crt-bundle: PK verify failed 0x10` = MPI alloc). Fix = `custom_sdkconfig` in
+  platformio.ini (hybrid build: mbedTLS 4 KB out buffer + dynamic buffers + no peer-cert retention,
+  client-only, no DTLS/renegotiation; trimmed esp_timer/timer/mDNS/async_tcp stacks to measured
+  high-water marks; Wi-Fi static RX 8→4, dynamic RX/TX 32→16). Result: idle free 117 → 132 KB,
+  worst GitHub low point 0.6 → 16 KB (typ. 25–60 KB), 6/6 OTA checks OK. IPv6 can't be disabled
+  (bundled esp-modbus/lwIP opts need it). Next levers if needed: drop mDNS, shrink evlog RAM tail.
 
 ---
 
