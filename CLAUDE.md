@@ -11,9 +11,9 @@ only, **active-high**: HIGH = charger ON) based on ComEd real-time supply prices
 power read from a BLE OBD dongle, a plain-HTTP local web UI, Pushover notifications, and HTTPS OTA.
 
 **Start with `PLAN.md`** — the full agreed design, owner decisions, reference-code pointers,
-milestones and open items. Status: all modules integrated and running on the board (hotspot,
-relay default, scheduler). Not yet exercised on hardware: STA Wi-Fi/TLS/ComEd fetch, BLE dongle,
-Pushover, OTA.
+milestones and open items. Status: v1.0 released from `main`. Verified on the board: Wi-Fi/NTP/ComEd, decisions,
+Pushover, web UI (Russian), OTA + rollback. Not yet exercised with the real car: BLE dongle reads,
+charging power sign, post-ON probe message, session stats.
 
 ## Stack
 C++ / Arduino-ESP32 core 3.3.x (pioarduino, IDF 5.5) / PlatformIO. NimBLE-Arduino, ArduinoJson 7,
@@ -58,8 +58,8 @@ PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it glob
 .venv/bin/pio test -e native            # host unit tests (lib/core only)
 .venv/bin/python tools/make_release.py  # dist/firmware-<ver>.bin + manifest.json for a GitHub release
 ```
-Release (OTA): `git tag -a vX.Y.Z` on a clean tree → `pio run -e c3` → `make_release.py` → `git push origin
-vX.Y.Z` → `gh release create vX.Y.Z dist/firmware-X.Y.Z.bin dist/manifest.json`. Must be a **full** release:
+Release (OTA): versions are `vMAJOR.MINOR` (no patch; owner decision). `git tag -a vX.Y` on a clean `main` → `pio run -e c3` → `make_release.py` → `git push origin
+vX.Y` → `gh release create vX.Y dist/firmware-X.Y.bin dist/manifest.json`. Must be a **full** release:
 `releases/latest` (the device default) skips pre-releases. Test builds go on a `--prerelease` and are installed
 by pasting that release's `manifest.json` URL into the UI. OTA + rollback were verified on the board
 2026-11-07 (v0.1.0; deliberate-abort build rolled back by the bootloader).
