@@ -58,6 +58,11 @@ PlatformIO lives in the project venv: use `.venv/bin/pio` (never install it glob
 .venv/bin/pio test -e native            # host unit tests (lib/core only)
 .venv/bin/python tools/make_release.py  # dist/firmware-<ver>.bin + manifest.json for a GitHub release
 ```
+Release (OTA): `git tag -a vX.Y.Z` on a clean tree → `pio run -e c3` → `make_release.py` → `git push origin
+vX.Y.Z` → `gh release create vX.Y.Z dist/firmware-X.Y.Z.bin dist/manifest.json`. Must be a **full** release:
+`releases/latest` (the device default) skips pre-releases. Test builds go on a `--prerelease` and are installed
+by pasting that release's `manifest.json` URL into the UI. OTA + rollback were verified on the board
+2026-11-07 (v0.1.0; deliberate-abort build rolled back by the bootloader).
 
 ## Hard rules
 - Pure logic (parsers, price math, decision engine, record encoding) lives in `lib/core` and must not
