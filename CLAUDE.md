@@ -39,7 +39,9 @@ HTML/JS file `web/index.html` (design: `prototypes/option-5-app.html`), gzipped 
 - ESPAsyncWebServer: a plain route `"/a/b"` also matches `"/a/b/..."`, first registered wins — register
   a longer route (e.g. `/api/wifi/forget`) before its prefix route with the same method (`/api/wifi`).
 - BLE is initialised **only for the duration of a car poll** (`carlink::end()` after each poll):
-  keeping NimBLE up leaves too little heap for TLS.
+  keeping NimBLE up leaves too little heap for TLS. Before `deinit` the link must be fully down —
+  wait on `getConnHandle() == NONE`, not `isConnected()` (false already while DISCONNECTING);
+  otherwise NimBLE keeps the client in its static table and the next `createClient()` returns nullptr.
 - Wi-Fi credentials live in NVS namespace `"wifi"` (wifi_mgr); config/logic/state in `"cc"`.
   Captive DNS is owned by wifi_mgr (web::loop does nothing).
 - `include/nimble_trim.h` is force-included (`-include`) to compile out NimBLE peripheral/broadcaster
