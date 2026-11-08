@@ -286,14 +286,24 @@ const tm=s=>{const [h,m]=String(s).split(':').map(Number);return h*60+m};
 const daH=(arr,h)=>arr?arr[(h+1)%24]:null; /* day-ahead/actual arrays are hour-ending: slot starting at h = index h+1 */
 
 /* ---------- API ---------- */
-async function api(path,method,body){
+async function api1(path,method,body){
  const c=new AbortController(),to=setTimeout(()=>c.abort(),9000);
  try{const r=await fetch(path,{method:method||'GET',signal:c.signal,cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
   let j=null;try{j=await r.json()}catch(_){}
-  if(!r.ok){const e=new Error((j&&j.error)||('HTTP '+r.status));e.status=r.status;e.errors=(j&&j.errors)||[];throw e}
+  if(!r.ok){const e=new Error((j&&j.error)||('HTTP '+r.status));e.status=r.status;e.errors=(j&&j.errors)||[];
+   const ra=r.status===503&&r.headers.get('Retry-After');if(ra)e.retry=Math.min(5,+ra||1)*1000;throw e}
   return {s:r.status,j}}
  catch(e){if(!e.status){e.message=e.name==='AbortError'?'Устройство не ответило':'Нет связи с устройством';e.errors=[]}throw e}
  finally{clearTimeout(to)}}
+/* The device serves at most 2 large responses (prices, stats, log) at once and answers 503 + Retry-After
+   beyond that: queue large GETs here (2 in flight, FIFO) and retry any GET that gets a Retry-After. */
+const BIG=/^\/api\/(prices|stats\/|log)/;let bigN=0;const bigQ=[];
+const bigSlot=()=>bigN<2?(bigN++,Promise.resolve()):new Promise(r=>bigQ.push(r));
+const bigFree=()=>{const n=bigQ.shift();n?n():bigN--};
+async function api(path,method,body){const get=!method||method==='GET',big=get&&BIG.test(path);
+ if(big)await bigSlot();
+ try{for(let i=0;;i++){try{return await api1(path,method,body)}catch(e){if(!(get&&e.retry&&i<4))throw e;await new Promise(r=>setTimeout(r,e.retry))}}}
+ finally{if(big)bigFree()}}
 const errMsg=e=>e.message+(e.errors&&e.errors.length?': '+e.errors[0]:'');
 function errSheet(title,e){openSheet(`<div class="grab"></div><h2>${esc(title)}</h2><div class="small">${esc(e.message)}</div>${e.errors&&e.errors.length?`<div class="banner red small mt">${I('warn','bad')}<div>${e.errors.map(esc).join('<br>')}</div></div>`:''}<div class="flex mt2"><span class="sp"></span><button class="btn s" data-act="closeSheet">ОК</button></div>`)}
 async function putCfg(body,msg){try{const {j}=await api('/api/config','PUT',body);S.cfg=j;toast(msg);render();poll();return true}catch(e){toast(esc(errMsg(e)),'warn');return false}}
@@ -303,9 +313,10 @@ async function loadPrices(){try{S.pr=(await api('/api/prices')).j;S.prAt=Date.no
 async function loadLog(){try{S.log=(await api('/api/log?limit=300')).j;rerender()}catch(e){toast(esc(e.message),'warn')}}
 async function loadHist(){loadPrices();
  if(clk())api('/api/stats/detail?from='+midnight()+'&to='+now()).then(r=>{S.det=r.j;rerender()}).catch(()=>{});
- api('/api/stats/daily?days=14').then(r=>{S.daily=r.j;rerender()}).catch(()=>{});
- api('/api/stats/monthly?months=6').then(r=>{S.monthly=r.j;rerender()}).catch(()=>{});
+ S[S.ui.histView==='daily'?'monthly':'daily']=null;loadAgg(S.ui.histView);
  api('/api/stats/sessions?limit=20').then(r=>{S.sess=r.j;rerender()}).catch(()=>{})}
+/* only the selected bar view is fetched; the other one on first switch (see ACT.hv) */
+function loadAgg(v){api(v==='daily'?'/api/stats/daily?days=14':'/api/stats/monthly?months=6').then(r=>{S[v]=r.j;rerender()}).catch(()=>{})}
 const rerender=()=>renderLive(true);
 
 /* ---------- status polling + job watching ---------- */
@@ -773,7 +784,7 @@ const ACT={
  day:t=>{const w=schedDraft()[+t.dataset.w],d=+t.dataset.d;w.days=w.days.includes(d)?w.days.filter(x=>x!==d):[...w.days,d].sort();saveSched()},
  delWin:t=>{schedDraft().splice(+t.dataset.w,1);saveSched()},
  addWin:()=>{schedDraft().push({days:[0,6],start:'10:00',end:'14:00'});saveSched()},
- logF:t=>{S.ui.logFilter=t.dataset.f;render()},hv:t=>{S.ui.histView=t.dataset.v;render()},logRefresh:()=>loadLog(),
+ logF:t=>{S.ui.logFilter=t.dataset.f;render()},hv:t=>{const v=S.ui.histView=t.dataset.v;render();if(!S[v])loadAgg(v)},logRefresh:()=>loadLog(),
  seg:t=>{t.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===t))},
  save:t=>SAVE[t.dataset.f](),
  secClr:t=>{const k=t.dataset.k,on=!t.classList.contains('on');t.classList.toggle('on',on);t.textContent=on?'Вернуть':'Очистить';const i=$('#p_'+k);i.disabled=on;if(on)i.value='';

@@ -15,6 +15,8 @@ Ownership map and module rules: [`docs/MODULES.md`](MODULES.md). Owners: **web_a
   `not_detected`, …); the UI maps enums to Russian labels itself.
 - Errors: 4xx/5xx with `{"error": "human message"}`; validation errors may add `"errors": ["…"]`.
   400 bad input · 404 unknown route · 409 busy/conflict · 503 needs clock/not ready.
+  Large GETs (`/api/prices`, `/api/stats/*`, `/api/log`) are limited to 2 in flight (and refused on low heap):
+  beyond that they get 503 + `Retry-After: 1`. The UI queues them 2 at a time and retries on `Retry-After`.
 - Async actions return **202** `{"queued": true, "seq": 7}`; progress/results appear in `GET /api/status`
   (`jobs`; a finished job whose `seq` ≥ the 202's `seq` is the result of that request) or the dedicated progress endpoint. UI polls `/api/status` every ~5 s (1 s while a job runs).
 - **Secrets are write-only**: never in any response. Responses only carry `*_set` booleans. On PUT, an
