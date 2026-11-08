@@ -36,6 +36,8 @@ HTML/JS file `web/index.html` (design: `prototypes/option-5-app.html`), gzipped 
   -> stats -> pushover -> queued jobs -> OTA health check. Task watchdog 60 s on the loop task; long
   waits in car_link / https_client call `wdtFeed()` (`src/app/wdt.h`); https caps connect, TLS
   handshake and header wait at 15 s each.
+- ESPAsyncWebServer: a plain route `"/a/b"` also matches `"/a/b/..."`, first registered wins — register
+  a longer route (e.g. `/api/wifi/forget`) before its prefix route with the same method (`/api/wifi`).
 - BLE is initialised **only for the duration of a car poll** (`carlink::end()` after each poll):
   keeping NimBLE up leaves too little heap for TLS.
 - Wi-Fi credentials live in NVS namespace `"wifi"` (wifi_mgr); config/logic/state in `"cc"`.
