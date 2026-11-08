@@ -542,6 +542,14 @@ void loop() {
     }
   }
 
+  // timed override: re-evaluate as soon as it ends, not at the next minute tick
+  bool ovr_ended;
+  {
+    Lock l;
+    ovr_ended = s_rt.ovr.until > 0 && sysclock::valid() && sysclock::now() >= s_rt.ovr.until;
+  }
+  if (ovr_ended) evaluate(false);
+
   // once a minute: time-based re-evaluation (§7.1 d), stats, override expiry
   if (due(s_last_min + 60000)) {
     s_last_min = millis();

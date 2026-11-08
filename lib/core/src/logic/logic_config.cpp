@@ -278,6 +278,18 @@ std::vector<std::string> overlapWarnings(const LogicConfig& cfg) {
       out.push_back("«" + st[i]->name + "» и «" + st[j]->name + "» оба подходят при заряде " + range +
                     " — выигрывает первое по порядку, состояние может переключаться туда-обратно");
     }
+  // Start above stop inverts the hysteresis: ON at a price that immediately counts as "high".
+  for (const State& s : cfg.states)
+    for (size_t i = 0; i < s.blocks.size(); i++) {
+      const Block& b = s.blocks[i];
+      if (b.on.is_min || b.off.is_min || !(b.on.value > b.off.value)) continue;
+      char on[16], off[16], line[200];
+      fmtNum(on, sizeof on, b.on.value);
+      fmtNum(off, sizeof off, b.off.value);
+      snprintf(line, sizeof line, " — диапазон %u: старт %s¢ выше стопа %s¢, зарядка будет включаться и сразу выключаться",
+               (unsigned)(i + 1), on, off);
+      out.push_back("«" + s.name + "»" + line);
+    }
   return out;
 }
 

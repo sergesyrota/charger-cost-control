@@ -6,6 +6,7 @@
 #include <ArduinoJson.h>
 #include <esp_heap_caps.h>
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -97,6 +98,25 @@ void onJson(AsyncWebServer& s, const char* uri, WebRequestMethod m, size_t maxBo
       });
 }
 
+// ---------------------------------------------------------------- large-response gate
+// Bodies that are built in RAM (log, prices) or streamed for a while (stats) are limited to 2 in
+// flight and refused when the heap is low: 10 parallel /api/log calls used to drain it to ~0.4 KB.
+std::atomic<int> s_big{0};
+constexpr int kMaxBig = 2;
+constexpr size_t kMinLargestBlock = 24 * 1024;
+
+bool admitBig(AsyncWebServerRequest* r) {
+  if (s_big.load() >= kMaxBig || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < kMinLargestBlock) {
+    AsyncWebServerResponse* res = r->beginResponse(503, "application/json", "{\"error\":\"устройство занято, повторите\"}");
+    res->addHeader("Retry-After", "1");
+    r->send(res);
+    return false;
+  }
+  s_big++;
+  r->onDisconnect([] { s_big--; });
+  return true;
+}
+
 // ---------------------------------------------------------------- chunked JSON arrays
 struct Chunker {
   uint32_t cursor = 0;
@@ -105,6 +125,7 @@ struct Chunker {
 using FillFn = std::function<size_t(uint32_t&, char*, size_t)>;
 
 void sendChunked(AsyncWebServerRequest* r, FillFn fill) {
+  if (!admitBig(r)) return;
   auto st = std::make_shared<Chunker>();
   AsyncWebServerResponse* res =
       r->beginChunkedResponse("application/json", [st, fill](uint8_t* buf, size_t maxLen, size_t) -> size_t {
@@ -353,6 +374,7 @@ void appendEpoch(String& s, int64_t e) {
 }
 
 void handlePrices(AsyncWebServerRequest* r) {
+  if (!admitBig(r)) return;
   ChicagoTime ct;
   bool clk = app::clockValid() && sysclock::chicago(ct);
   String s;
@@ -544,6 +566,7 @@ void handleLog(AsyncWebServerRequest* r) {
       if (kind == evlog::kindName((evlog::Kind)i)) ok = true;
     if (!ok) return sendErr(r, 400, "неизвестный тип");
   }
+  if (!admitBig(r)) return;
   AsyncResponseStream* s = r->beginResponseStream("application/json");
   s->addHeader("Cache-Control", "no-store");
   s->print('[');
