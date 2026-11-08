@@ -25,6 +25,7 @@ const char* const kErrNoNetwork = "нет сети";
 const char* const kErrNoClock = "часы не установлены";
 const char* const kErrBusy = "сеть занята";
 const char* const kErrTransport = "ошибка соединения";
+const char* const kErrConnect = "нет соединения с сервером";
 
 namespace {
 
@@ -148,7 +149,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
       http->end();
       logHeap("after", cur.c_str());
       r.status = code < 0 ? code : -1;
-      r.error = "нет соединения с сервером";
+      r.error = kErrConnect;
       return r;
     }
     if (!form && isRedirect(code)) {
@@ -180,12 +181,24 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
 
 }  // namespace
 
+// One retry after a short pause when the connection/handshake failed before any body byte arrived.
+// Back-to-back TLS sessions (e.g. OTA check then install) can fail the RSA-4096 certificate check
+// with an MPI allocation error while the previous session's memory is still being released.
+Result runRetry(const char* url, const char* form, const BodyCb& body, uint32_t timeout_ms, const StartCb& on_start) {
+  Result r = run(url, form, body, timeout_ms, on_start);
+  if (r.status < 0 && r.bytes == 0 && r.error == kErrConnect) {
+    for (int i = 0; i < 30; i++) { wdtFeed(); delay(100); }
+    r = run(url, form, body, timeout_ms, on_start);
+  }
+  return r;
+}
+
 Result get(const char* url, const BodyCb& body, uint32_t timeout_ms, const StartCb& on_start) {
-  return run(url, nullptr, body, timeout_ms, on_start);
+  return runRetry(url, nullptr, body, timeout_ms, on_start);
 }
 
 Result postForm(const char* url, const char* form, const BodyCb& body, uint32_t timeout_ms) {
-  return run(url, form ? form : "", body, timeout_ms, nullptr);
+  return runRetry(url, form ? form : "", body, timeout_ms, nullptr);
 }
 
 void urlEncodeAppend(const char* value, std::function<void(const char*, size_t)> sink) {

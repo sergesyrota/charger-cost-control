@@ -14,6 +14,7 @@ extern const char* const kErrNoNetwork;  // no STA connection
 extern const char* const kErrNoClock;    // clock not set (TLS needs it)
 extern const char* const kErrBusy;       // network lock busy (BLE poll / other TLS)
 extern const char* const kErrTransport;  // generic fallback
+extern const char* const kErrConnect;    // TCP/TLS connect or handshake failed (retried once)
 
 // Return false from the callback to abort (result.error = "прервано").
 using BodyCb = std::function<bool(const uint8_t* data, size_t len)>;

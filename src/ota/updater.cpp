@@ -111,6 +111,9 @@ int compareVersions(const char* a, const char* b, bool* ok) {
   return 0;
 }
 
+static char s_checked_url[256];  // URL the current manifest came from (guarded by s_mux)
+static uint32_t s_checked_ms = 0;
+
 bool check(const char* url) {
   if (!isHttps(url)) return fail("адрес должен начинаться с https://");
   setPhase(Phase::Checking);
@@ -172,6 +175,8 @@ bool check(const char* url) {
   portENTER_CRITICAL(&s_mux);
   s_p.manifest = m;
   s_p.has_manifest = true;
+  copyStr(s_checked_url, sizeof(s_checked_url), url);
+  s_checked_ms = millis();
   s_p.phase = ph;
   s_p.bytes = 0;
   s_p.total = m.size;
@@ -194,8 +199,12 @@ struct Dl {
 }  // namespace
 
 bool install(const char* url) {
+  // Reuse a manifest checked for the same URL in the last 10 min (saves two TLS handshakes).
   if (url && *url) {
-    if (!check(url)) return false;
+    portENTER_CRITICAL(&s_mux);
+    bool fresh = s_p.has_manifest && strcmp(s_checked_url, url) == 0 && millis() - s_checked_ms < 600000;
+    portEXIT_CRITICAL(&s_mux);
+    if (!fresh && !check(url)) return false;
   }
   static Manifest m;
   portENTER_CRITICAL(&s_mux);
