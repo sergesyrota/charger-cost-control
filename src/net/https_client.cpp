@@ -28,33 +28,6 @@ constexpr int kMaxRedirects = 5;
 // sum stays well under the loop task's 60 s watchdog (app.cpp). The body stream feeds the WDT.
 constexpr uint32_t kPhaseCapMs = 15000;
 
-// Write-only Stream that forwards to the body callback; returns 0 on abort so writeToStream stops.
-class CbSink : public Stream {
- public:
-  explicit CbSink(const BodyCb& cb) : cb_(cb) {}
-  int available() override { return 0; }
-  int read() override { return -1; }
-  int peek() override { return -1; }
-  size_t write(uint8_t c) override { return write(&c, 1); }
-  size_t write(const uint8_t* buf, size_t len) override {
-    if (aborted_) return 0;
-    wdtFeed();
-    if (cb_ && !cb_(buf, len)) {
-      aborted_ = true;
-      return 0;
-    }
-    bytes_ += len;
-    return len;
-  }
-  bool aborted() const { return aborted_; }
-  size_t bytes() const { return bytes_; }
-
- private:
-  const BodyCb& cb_;
-  bool aborted_ = false;
-  size_t bytes_ = 0;
-};
-
 void logHeap(const char* when, const char* url) {
 #if CORE_DEBUG_LEVEL >= 4
   log_d("https %s %s: free=%u largest=%u", when, url, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
@@ -87,13 +60,35 @@ bool resolveLocation(const String& cur, const String& loc, String& out) {
   return false;  // http:// or relative-path redirects are not supported
 }
 
-const char* streamBody(HTTPClient& http, const BodyCb& body, Result& r) {
-  CbSink sink(body);
-  int n = http.writeToStream(&sink);
-  r.bytes = sink.bytes();
-  if (sink.aborted()) return "aborted";
-  if (n == HTTPC_ERROR_NOT_CONNECTED && sink.bytes() == 0) return "";  // empty body, server closed
-  if (n < 0) return "read failed";
+// Own body loop (HTTP/1.0 => no chunked encoding; server closes at the end). Never spins: sleeps
+// 5 ms when no data, gives up after `idle_ms` without data or `total_ms` overall.
+const char* streamBody(HTTPClient& http, const BodyCb& body, Result& r, uint32_t idle_ms, uint32_t total_ms) {
+  NetworkClient* s = http.getStreamPtr();
+  if (!s) return "read failed";
+  static uint8_t buf[512];  // loop task only (under netlock)
+  int remaining = http.getSize();  // -1 = until close
+  const uint32_t t0 = millis();
+  uint32_t last = t0;
+  while (remaining != 0) {
+    if (millis() - t0 > total_ms) return "read timeout";
+    int a = s->available();
+    if (a > 0) {
+      size_t want = (size_t)a < sizeof(buf) ? (size_t)a : sizeof(buf);
+      if (remaining > 0 && (size_t)remaining < want) want = remaining;
+      int n = s->read(buf, want);
+      if (n <= 0) { delay(5); continue; }
+      last = millis();
+      wdtFeed();
+      if (body && !body(buf, (size_t)n)) return "aborted";
+      r.bytes += n;
+      if (remaining > 0) remaining -= n;
+    } else {
+      if (!s->connected()) break;
+      if (millis() - last > idle_ms) return "read timeout";
+      delay(5);
+    }
+  }
+  if (remaining > 0) return "short body";
   return "";
 }
 
@@ -125,6 +120,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
     client->setHandshakeTimeout((phase_ms + 999) / 1000);  // library default is 120 s
     std::unique_ptr<HTTPClient> http(new HTTPClient());
     http->setReuse(false);
+    http->useHTTP10(true);  // no chunked bodies; our streamBody reads until close/length
     http->setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     http->setConnectTimeout(phase_ms);
     http->setTimeout((uint16_t)phase_ms);
@@ -167,7 +163,7 @@ Result run(const char* url, const char* form, const BodyCb& body, uint32_t timeo
     r.status = code;
     r.content_length = http->getSize();
     if (on_start) on_start(code, r.content_length);
-    if (r.content_length != 0 && (form || (code >= 200 && code < 300))) r.error = streamBody(*http, body, r);
+    if (r.content_length != 0 && (form || (code >= 200 && code < 300))) r.error = streamBody(*http, body, r, phase_ms, timeout_ms);
     http->end();
     logHeap("after", cur.c_str());
     return r;

@@ -446,6 +446,7 @@ void setup() {
     relay::begin(boot.relay_active_high, boot.default_relay);
   }
   Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);  // never block a task on the USB console (no host reading => drop)
   s_mx = xSemaphoreCreateRecursiveMutex();
   strlcpy(s_reset, resetName(esp_reset_reason()), sizeof(s_reset));
   netlock::init();
