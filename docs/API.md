@@ -242,6 +242,7 @@ Newest first: `[{"t": 1794089400, "up": 277800, "k": "relay", "msg": "ВКЛ: Ц
 | `POST /api/reboot` | `{}` | 202 `{"rebooting":true}` | Flushes stats/state first. |
 | `GET /api/wifi/scan` | — | 202 `{"scanning":true}` while running, else 200 below | First call starts a scan; results kept ~60 s. `?refresh=1` forces a new scan. |
 | `POST /api/wifi` | `{"ssid": "Net", "password": "…"}` | 202 `{"queued":true}` | Password write-only: omitted/`""` keeps current for the same SSID, means open network for a new SSID. Device reconnects; hotspot rules per PLAN §11. |
+| `POST /api/wifi/forget` | `{}` | 202 `{"rebooting":true}` | 409 if no network saved. ~1.5 s later erases the saved SSID/password, flushes stats/state and reboots; with no credentials it comes up as the open hotspot (192.168.4.1). |
 
 `GET /api/ota/progress`:
 ```json

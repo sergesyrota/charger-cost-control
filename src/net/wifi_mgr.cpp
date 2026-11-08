@@ -300,6 +300,16 @@ void setCredentials(const char* ssid, const char* pass) {
   tryConnect();
 }
 
+void forget() {
+  {
+    Lock l;
+    s_ssid[0] = 0;
+  }
+  memset(s_pass, 0, sizeof(s_pass));
+  s_has_creds = false;
+  saveCreds();  // empty ssid => clears the "wifi" namespace
+}
+
 bool staConnected() { return s_sta_up; }
 bool apActive() { return s_ap; }
 

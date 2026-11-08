@@ -69,6 +69,7 @@ char s_ota_url[192] = "";
 bool s_wifi_req = false;
 char s_wifi_ssid[33] = "", s_wifi_pass[65] = "";
 uint32_t s_reboot_at = 0;  // millis, 0 = none
+bool s_wifi_forget = false;  // erase Wi-Fi credentials right before that reboot
 
 // scheduler (millis)
 uint32_t s_next_poll = 30000;  // first car poll ~30 s after boot (SOC for the UI)
@@ -579,7 +580,17 @@ void loop() {
   healthCheck();
 
   if (s_reboot_at && due(s_reboot_at)) {
-    evlog::add(evlog::Kind::Sys, "Перезагрузка по запросу");
+    bool forget;
+    {
+      Lock l;
+      forget = s_wifi_forget;
+    }
+    if (forget) {  // done at reboot time (not in the handler) so the 202 reply still gets out over STA
+      wifi::forget();
+      evlog::add(evlog::Kind::Sys, "Wi-Fi: сеть забыта, перезагрузка в режим точки доступа");
+    } else {
+      evlog::add(evlog::Kind::Sys, "Перезагрузка по запросу");
+    }
     flushAll();
     delay(200);
     ESP.restart();
@@ -718,6 +729,13 @@ bool requestOtaInstall(const char* url, std::string& err) {
 void requestReboot() {
   Lock l;
   s_reboot_at = millis() + 1000;
+  if (!s_reboot_at) s_reboot_at = 1;
+}
+
+void requestWifiForget() {
+  Lock l;
+  s_wifi_forget = true;
+  s_reboot_at = millis() + 1500;
   if (!s_reboot_at) s_reboot_at = 1;
 }
 

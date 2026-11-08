@@ -20,6 +20,9 @@ bool passwordSet();                        // a non-empty password is stored
 // Save + reconnect (from the loop task only — app queues it). pass == nullptr or "" keeps the
 // current password if ssid is unchanged; for a new ssid it means "open network".
 void setCredentials(const char* ssid, const char* pass);
+// Erase the saved network (NVS + RAM) without touching the radio (loop task only). Meant to be
+// followed by a reboot, which then comes up as the hotspot (no credentials).
+void forget();
 
 bool staConnected();
 bool apActive();

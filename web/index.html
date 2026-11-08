@@ -558,7 +558,8 @@ SCR.wifi=()=>{const w=S.st.wifi||{};const sc=S.ui.scan;const job=(S.st.jobs||{})
  <div class="row"><div class="lab">IP-адрес</div><div class="val">${esc(w.ip)}</div></div>`:''}
  <div class="row"><div class="lab">mDNS</div><div class="val">${esc(w.hostname||'charger.local')}</div></div>
  <div class="row"><div class="lab">Точка доступа</div><div class="val">${w.ap?esc(w.ap_ssid)+' · '+esc(w.ap_ip||'')+' · '+pl(w.ap_clients||0,['клиент','клиента','клиентов']):'выкл'}</div></div>
- ${w.ssid?`<button class="row" data-act="netPw"><div class="lab">Сменить пароль<small>для ${esc(w.ssid)} · текущий не показывается</small></div>${I('chev','chev')}</button>`:''}</div>
+ ${w.ssid?`<button class="row" data-act="netPw"><div class="lab">Сменить пароль<small>для ${esc(w.ssid)} · текущий не показывается</small></div>${I('chev','chev')}</button>
+ <button class="row" data-act="netForget"><div class="lab" style="color:var(--red)">Забыть сеть<small>удалить пароль и перезагрузиться в режим точки доступа</small></div></button>`:''}</div>
  ${job.state==='error'&&job.error?`<div class="gf bad">Последняя попытка: ${esc(job.error)}</div>`:''}</div>
  <div class="group"><div class="gh flex">Другие сети <span class="sp"></span><button data-act="scan" style="color:var(--blu);text-transform:none;font-weight:600">${sc==='busy'?I('refresh','spin'):'Обновить'}</button></div><div class="list card noic">
  ${Array.isArray(sc)?sc.map((n,i)=>`<button class="row" data-act="pickNet" data-i="${i}"><div class="lab">${esc(n.ssid)}${n.secure?'':' <span class="tiny muted">открытая</span>'}</div><span class="val">${n.rssi} дБм</span>${I('chev','chev')}</button>`).join('')||'<div class="row muted small">Сети не найдены.</div>':`<div class="row muted small">${sc==='busy'?'Поиск…':sc&&sc.err?esc(sc.err):'Нажмите «Обновить», чтобы найти сети.'}</div>`}
@@ -820,6 +821,8 @@ const ACT={
  otaInstall:async()=>{try{await api('/api/ota/install','POST',{});S.ui.otaWant='install';S.ota=Object.assign({},S.ota,{phase:'downloading',pct:0});render();setTimeout(otaPoll,700)}
   catch(e){toast(esc(errMsg(e)),'warn')}},
  reboot:()=>openSheet(`<div class="grab"></div><h2>Перезагрузить?</h2><div class="small muted">Во время запуска реле будет в положении по умолчанию (${S.st.relay_default?'ВКЛ':'ВЫКЛ'}); ручные режимы с ограничением по времени сбросятся. Статистика сохраняется заранее.</div><div class="flex mt2"><span class="sp"></span><button class="btn s" data-act="closeSheet">Отмена</button><button class="btn r" data-act="doReboot">Перезагрузить</button></div>`),
+ netForget:()=>{const w=S.st.wifi||{};openSheet(`<div class="grab"></div><h2>Забыть сеть «${esc(w.ssid||'')}»?</h2><div class="small muted">Пароль будет удалён, устройство перезагрузится и включит открытую точку доступа <b>${esc(w.ap_ssid||'ChargerControl')}</b>. Подключитесь к ней и откройте <b>192.168.4.1</b>, чтобы выбрать сеть. Во время запуска реле будет в положении по умолчанию (${S.st.relay_default?'ВКЛ':'ВЫКЛ'}).</div><div class="flex mt2"><span class="sp"></span><button class="btn s" data-act="closeSheet">Отмена</button><button class="btn r" data-act="doForget">Забыть</button></div>`)},
+ doForget:async()=>{const ap=(S.st.wifi||{}).ap_ssid||'ChargerControl';try{await api('/api/wifi/forget','POST',{});openSheet(`<div class="grab"></div><h2>Сеть забыта</h2><div class="small">Устройство перезагружается. Через ~10 с подключитесь к Wi-Fi <b>${esc(ap)}</b> и откройте <b>192.168.4.1</b>.</div>`)}catch(e){toast(esc(errMsg(e)),'warn')}},
  doReboot:async()=>{closeSheet();try{await api('/api/reboot','POST',{});S.reboot={up:S.st.uptime_s};renderConn();toast('Перезагрузка… вернёмся через ~10 с','refresh');setTimeout(poll,3000)}catch(e){toast(esc(errMsg(e)),'warn')}}
 };
 const SAVE={
