@@ -132,19 +132,25 @@ void sendChunked(AsyncWebServerRequest* r, FillFn fill) {
 }
 
 // ---------------------------------------------------------------- misc helpers
-void setEpoch(JsonVariant v, int64_t e) {
+// Templates, not JsonVariant: a MemberProxy (doc["k"]) converted to JsonVariant does not attach
+// a new member, so set() through it was silently dropped. Proxies add the member on set().
+template <typename V>
+void setEpoch(V v, int64_t e) {
   // integer, never double: ArduinoJson stores exactly-float-representable doubles as float and
   // prints them with 6 significant digits (1794085888 -> 1.794086e9).
   if (e > 0) v.set((int64_t)e); else v.set(nullptr);
 }
-void setTenths(JsonVariant v, int16_t t) {
+template <typename V>
+void setTenths(V v, int16_t t) {
   float f = rec::fromTenths(t);
   if (isnan(f)) v.set(nullptr); else v.set(f);
 }
-void setSoc(JsonVariant v, uint8_t s) {
+template <typename V>
+void setSoc(V v, uint8_t s) {
   if (s == 0xFF) v.set(nullptr); else v.set((int)s);
 }
-void setStr(JsonVariant v, const String& s) {
+template <typename V>
+void setStr(V v, const String& s) {
   if (s.length()) v.set(s.c_str()); else v.set(nullptr);
 }
 
