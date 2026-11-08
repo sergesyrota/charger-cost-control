@@ -102,7 +102,7 @@ All paths are absolute under `/Users/sergey/code/sergeysyrota/personal/`.
 | Item | Detail |
 |---|---|
 | MCU | ESP32-C3 SuperMini, 4 MB embedded flash (verified) |
-| Relay | **GPIO 4**. Polarity unknown → config `relay_active_high` (default `true`); verify on bench. Drive the pin to the *default/OFF* level as the very first thing in `setup()` (before Wi-Fi/BLE). GPIO 4 is not a C3 strapping pin (those are 2, 8, 9), so boot glitches are not expected. |
+| Relay | **GPIO 4**. **Active-high, verified on bench 2026-11-07**: GPIO HIGH = LED/relay on = charger ON; LOW = charger OFF. Config `relay_active_high` default `true`. Drive the pin to the *default/OFF* level as the very first thing in `setup()` (before Wi-Fi/BLE). GPIO 4 is not a C3 strapping pin (those are 2, 8, 9), so boot glitches are not expected. |
 | Status LED | On-board LED is GPIO 8 (active-low) on most SuperMinis — optional status blink (Wi-Fi/AP mode/relay). Note GPIO 8 is a strapping pin; only drive it after boot. |
 | Button | BOOT = GPIO 9. Optional: long-press at runtime → force setup AP / factory reset Wi-Fi. |
 | OBD dongle | Veepeak BLE, MAC `8C:DE:52:DE:B4:A0`, in the car. Must be within BLE range of the charger location (garage). |
@@ -127,7 +127,7 @@ All paths are absolute under `/Users/sergey/code/sergeysyrota/personal/`.
                 └───────────────────────────────────────────────────────────┘
 ```
 
-### Proposed source layout
+### Proposed source layout (superseded by `docs/MODULES.md`)
 ```
 charger-cost-control/
   platformio.ini            # envs: c3 (esp32-c3-devkitm-1 + USB CDC), native (host tests)
@@ -161,7 +161,7 @@ not include Arduino/ESP headers so it compiles in `env:native`. Pass time in as 
   ServletFeed) — don't buffer whole bodies when avoidable.
 - Expose `ESP.getFreeHeap()` / `getMinFreeHeap()` / largest free block on the status page; it's the
   first thing to look at when something misbehaves.
-- Enable the task watchdog (~30 s). Reset reason is logged at boot.
+- Enable the task watchdog (60 s; every unfed HTTPS phase capped at 15 s). Reset reason is logged at boot.
 
 ---
 
@@ -227,6 +227,14 @@ First applicable wins:
    valid; reverts to `auto` when reached). Indefinite manual on/off works without a clock.
 2. **Schedule** — per-weekday windows, e.g. Mon–Fri 01:00–05:00 ON. Requires valid clock. Outside
    all windows → fall through (configurable: "schedule only" mode makes outside-windows = OFF).
+   **Optional per-window price cap** `max_price` (¢/kWh supply, e.g. 3.0; absent = no cap). Inside a
+   capped window the relay is ON only while `currentSupply <= max_price`, regardless of the price-logic
+   state/blocks; when the price rises above the cap the window stops forcing ON and the mode's
+   outside-window behavior applies (Schedule → OFF, Schedule + price → price logic). Re-checked on every
+   5-minute price fetch, so it can turn back ON within the window when the price drops. Unknown price
+   inside a capped window → treated as over the cap. SOC target / full overlays still win. Reason
+   strings: "Inside schedule window Mon–Fri 00:00–03:00 (2.4¢ ≤ 3¢ cap)" / "Schedule window price
+   cap exceeded (3.4¢ > 3¢)". UI: optional "Max price" field per window in the schedule editor.
 3. **Price logic** — §7.3. Requires a known price.
 4. **Default** — `default_relay_state`, factory **OFF**. Used whenever the active mode can't decide
    (boot, no clock, no prices, etc.).
@@ -243,6 +251,9 @@ written to the event log on transitions, and used in Pushover text.
 - **Full**: SOC ≥ 100 (rounded, like `Bolt.php`) → OFF, notify once "OFF: Bolt is full". (The PHP
   had a "hold 1 h after full" intent but the check is `> 00`, i.e. immediate — keep immediate;
   optional `full_hold_minutes` config default 0.)
+- Overlays use the last known SOC **until the car is seen leaving** (a poll returns `not_detected`);
+  after that they ignore it until the next live SOC read. So a full car parked asleep stays OFF with no
+  ON/OFF churn, and a car that was driven and came back asleep isn't locked out by a stale 100 %.
 
 ### 7.3 Price logic — exact port of `Vehicle::getApplicableLogic` + `controlCharging`
 Config shape (unchanged, import `docs/reference/bolt-monitor-logic.json` as-is):
@@ -260,6 +271,9 @@ Config shape (unchanged, import `docs/reference/bolt-monitor-logic.json` as-is):
 Semantics to preserve:
 - **Current state is sticky** (persist `charging_state` in NVS; default `"default"`). This gives
   hysteresis: e.g. "Разряд" entered at SOC ≥ 80 and "Заряд" at SOC ≤ 20 — between them, stay put.
+  If the sticky name doesn't exist (fresh device, renamed/removed state) and there is no
+  `states.default`, the first state with charging bands is used and persisted (port deviation: the
+  PHP never hit this because its cache always held a real state).
 - If `state_select` names an existing state → use it, skip entry checks.
 - Else iterate states **in config order**; for each state with `entry_conditions`, all conditions
   must hold (AND). **Operators are honored literally** — `>` is strict, `>=` inclusive, `<` strict,
@@ -357,13 +371,16 @@ each transition branch, full/SOC-target overlays, unknown price → default, UTF
 # Name,    Type, SubType,  Offset,   Size
 nvs,       data, nvs,      0x9000,   0x5000
 otadata,   data, ota,      0xE000,   0x2000
-app0,      app,  ota_0,    0x10000,  0x190000
-app1,      app,  ota_1,    0x1A0000, 0x190000
-littlefs,  data, spiffs,   0x330000, 0xC0000
-coredump,  data, coredump, 0x3F0000, 0x10000
+app0,      app,  ota_0,    0x10000,  0x1D0000
+app1,      app,  ota_1,    0x1E0000, 0x1D0000
+littlefs,  data, spiffs,   0x3B0000, 0x50000
 ```
-App slots 1.6 MB each (expected image 1.1–1.3 MB with Wi-Fi + TLS + NimBLE + async web); ~768 KB
-LittleFS for stats. Check image size in CI/build output; fail the build if > 90 % of a slot.
+**Revised at integration (2026-11-07):** the full image is 1.79 MB, which did not fit the original
+1.6 MB slots. App slots are now 1.81 MB each, LittleFS 320 KB, and the coredump partition was dropped
+(crash backtraces go to serial, reset reason is logged; IDF prints "No core dump partition found!" at
+boot — harmless). Stats retention shrank accordingly (hourly ~11 months, 5-min detail ~17 days,
+1024 sessions). Measure the real `firmware.bin` size (`esptool image-info`), not PlatformIO's
+"Flash:" figure, which under-reports by ~80 KB.
 Changing this table later requires one USB flash.
 
 ### 9.2 NVS (config + small state)
@@ -431,6 +448,11 @@ Highcharts. Mobile-first.
 7. **Firmware** — current version; manifest URL (default prefilled, editable); "Check" shows
    available version; "Install" runs OTA with progress; reboot.
 8. **Log** — event log.
+
+### Secrets are write-only (owner decision)
+Wi-Fi password, Pushover token/user key (and any future secret) can be **set or replaced** from the UI
+but are **never returned** by any API or rendered on a page. APIs return only `"<field>_set": true|false`;
+an empty/omitted field on PUT means "keep current"; an explicit clear action removes it.
 
 ### JSON API (UI is just a client of this)
 ```
@@ -510,16 +532,53 @@ Stats endpoints stream records in chunks (chunked response) — never load a who
 
 ## 14. Open items (decide during build; don't block milestones 1–3)
 
-Resolved: OTA default URL → GitHub Releases of the public repo (§12); flash = 4 MB (§1);
+Resolved: relay polarity → active-high (§3); UI design → `prototypes/option-5-app.html` (app style); OTA default URL → GitHub Releases of the public repo (§12); flash = 4 MB (§1);
 entry-condition operators → literal strict/inclusive (§7.3); hotspot policy (§11).
 
 1. *(resolved)*
 2. *(resolved)*
-3. **Relay polarity** (`relay_active_high`) — verify on bench.
+3. *(resolved)* Relay polarity: active-high (HIGH = charger ON), verified on bench.
 4. **Charging power sign** (§8.4) — verify on first real charge.
 5. **BLE range** from the charger location to the car's OBD port — verify early (milestone 4 spike).
 6. Whether to notify when the car arrives and starts charging *after* an ON transition already
    happened (currently: **no**, page only — owner said don't repeat alerting).
+
+### Discovery findings (2026-11-07, spike on the real board)
+- **Toolchain:** PlatformIO 6.2.0 in project `.venv` (Python 3.14). Platform = **pioarduino**
+  `platform-espressif32` (stable) → Arduino core **3.3.12**, ESP-IDF **v5.5.5**. Libs resolved:
+  NimBLE-Arduino 2.x, ArduinoJson 7.4.3, ESP32Async/ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0.
+- **Rollback:** the precompiled Arduino bootloader already has `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`.
+  No custom bootloader needed: override `bool verifyRollbackLater() { return true; }` and call
+  `esp_ota_mark_app_valid_cancel_rollback()` after the health checks (§12). USB-flashed images report
+  state `UNDEFINED` (no otadata) — expected.
+- **Image size:** spike linking Wi-Fi + TLS + NimBLE + AsyncWebServer + ArduinoJson + LittleFS =
+  **1.275 MB = 77.8 % of a 1.6 MB slot**. NimBLE role-disable flags didn't change it (linker already
+  drops unused code). Budget ~200 KB for all app code before the 90 % guard. Fallback if needed:
+  shrink LittleFS (768 KB → 512 KB) and grow app slots to ~1.73 MB each (one USB reflash).
+- **Heap (no TLS yet):** boot 229 KB free → Wi-Fi AP + web 155 KB → **NimBLE init 92 KB**
+  (largest block 78 KB) → after a 15 s scan 89 KB. TLS (~45 KB) fits with NimBLE initialized but
+  idle; still never concurrent with an active GATT session. TLS measurement pending STA Wi-Fi.
+- **LittleFS:** must mount with the partition label: `LittleFS.begin(true, "/littlefs", 10, "littlefs")`
+  (default looks for `spiffs`).
+- **Price oracle:** `price-worker.serg-syrota.workers.dev` currently returns 404 on every path. For
+  milestone-2 acceptance, run the reference `prices.ts` locally on the same captured fixtures instead.
+- **ComEd fixtures** captured to `test/fixtures/` (5-min feed, day-ahead today/tomorrow, actuals).
+- **Integrated build (2026-11-07, all modules):** `firmware.bin` **1,791,776 B = 94.3 %** of the
+  1,900,544 B slot (PlatformIO reports 1,714,497 B / 90.2 %; the .bin is what OTA writes). Static RAM
+  68,200 B (20.8 %). Gzipped UI 33,120 B. Biggest app-side lever if space runs out: the built-in
+  full CA bundle is ~69 KB (could be replaced by a handful of roots via `--wrap=esp_crt_bundle_attach`,
+  at the cost of CA-rotation risk). mDNS actually costs ~42 KB (kept). NimBLE peripheral/broadcaster
+  are compiled out via `include/nimble_trim.h` (−16 KB).
+- **Size pass (2026-11-07):** `-fno-exceptions` (−84 KB), NimBLE SM/bond store off via `MYNEWT_VAL_*`
+  (−30 KB), SuperMini board variant without RGB_BUILTIN (−20 KB), `--wrap` of mbedtls/esp_err name
+  tables, WiFiProv deinit and the chip-debug report (−33 KB): **firmware.bin 1,626,816 B = 85.6 %**.
+  Not done yet (if more room is needed): CA bundle "common" subset via `custom_sdkconfig`, IPv6/WPA3/
+  TLS-server off (hybrid IDF rebuild), hand-rolled HTTP instead of HTTPClient.
+- **Heap (integrated, hotspot up, no STA, web serving):** BLE is brought up only for each car poll
+  and torn down after (`NimBLEDevice::deinit`), because keeping it initialised left only ~51 KB free
+  / 43 KB largest block — not enough for TLS. Now: **~121 KB free at boot (102 KB largest), ~115 KB
+  idle after BLE cycles (55 KB largest)**; min-ever ~51–55 KB during a BLE poll. Six back-to-back
+  init/connect/deinit cycles showed no leak. TLS heap still unmeasured (no Wi-Fi credentials yet).
 
 ---
 
@@ -557,6 +616,7 @@ entry-condition operators → literal strict/inclusive (§7.3); hotspot policy (
 ```
 pio run -e c3                    # build
 pio run -e c3 -t upload          # USB flash (first time / partition changes); port /dev/cu.usbmodem1101
+.venv/bin/python tools/make_release.py --notes "..."   # dist/firmware-<ver>.bin + manifest.json
 pio device monitor -b 115200     # serial log (USB CDC on boot enabled)
 pio test -e native               # host unit tests (parsers, price math, decision engine)
 ```

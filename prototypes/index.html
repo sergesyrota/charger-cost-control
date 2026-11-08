@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Charger UI Prototypes</title>
+<style>
+:root{--bg:#f6f5f2;--fg:#1d1d1b;--mut:#6b6a66;--card:#fff;--bd:#e3e1dc;--ac:#2f7d4f}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--fg:#ecebe7;--mut:#9a9893;--card:#1e1e1c;--bd:#33322f;--ac:#5fc88a}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:32px 16px}
+h1{font-size:1.6rem;margin:0 0 4px}p.lead{color:var(--mut);margin:0 0 24px}
+a.opt{display:block;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;margin:0 0 12px;color:inherit;text-decoration:none}
+a.opt:hover{border-color:var(--ac)}a.opt b{color:var(--ac)}a.opt span{display:block;color:var(--mut);font-size:.92rem;margin-top:4px}
+</style>
+</head>
+<body><main>
+<h1>Charger UI — 5 prototypes</h1>
+<p class="lead">Same functionality as PLAN.md §11, five different ways to organize it. Each has a "Demo scenario" switcher in the corner (charging / waiting / on-but-not-charging / booting / manual override).</p>
+<a class="opt" href="option-1-now.html"><b>1 · Now first</b><span>Four destinations (Now, Rules, History, Device) instead of eight tabs. Plain-language hero answer, 24h price strip with predicted next ON, mode control on the home screen.</span></a>
+<a class="opt" href="option-2-timeline.html"><b>2 · Timeline</b><span>An interactive 24h price/decision chart is the main navigation. Scrub any hour to see what the engine decided and why; a precedence-chain explainer opens each editor.</span></a>
+<a class="opt" href="option-3-sentences.html"><b>3 · Plain language</b><span>Status and rules read and edit as sentences with inline tokens, plus a "Try it" simulator (SOC / price / minute → ON/OFF) to check rules before saving.</span></a>
+<a class="opt" href="option-4-console.html"><b>4 · Console</b><span>Dense power-user panel: persistent status strip, grouped sidebar, master–detail logic editor with JSON diff, command palette (⌘K).</span></a>
+<a class="opt" href="option-5-app.html"><b>5 · Phone app</b><span>Native-app feel: SOC charge ring, mode bottom sheet, rules as a vertical "battery ladder", settings as grouped drill-down lists.</span></a>
+</main></body>
+</html>

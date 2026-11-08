@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Charger — Option 3: Plain language</title>
+<style>
+:root{
+  --paper:#f7f3ea;--paper2:#efe8d9;--card:#fbf8f1;--ink:#1c2230;--ink2:#4a5263;--mute:#7b7f88;--rule:#d8cfbb;
+  --accent:#1d3f8f;--accent-soft:#dfe6f5;--hl:#fbe28a;--hl-ink:#163478;--on:#1f6f47;--on-bg:#dcefe3;--off:#7a3b2b;--off-bg:#f2e1da;
+  --warn:#8a5200;--warn-bg:#fbefd2;--err:#b3261e;--vermil:#c4452c;--grid:#e6dfcf;
+  --serif:Charter,"Bitstream Charter","Iowan Old Style","Sitka Text",Cambria,Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#15171c;--paper2:#1c1f26;--card:#1a1d23;--ink:#ebe6da;--ink2:#bcb6a8;--mute:#8d887c;--rule:#30343d;
+  --accent:#9fb8ff;--accent-soft:#1f2a45;--hl:rgba(250,204,21,.24);--hl-ink:#e3eaff;--on:#7fd3a3;--on-bg:#173326;--off:#f0a990;--off-bg:#3a201a;
+  --warn:#f3c26b;--warn-bg:#34290f;--err:#ff8a80;--vermil:#ff8c6b;--grid:#272b33;
+}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.55 var(--serif);overflow-x:hidden}
+a{color:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:780px;margin:0 auto;padding:0 16px}
+.back{display:block;font:12px/1 var(--sans);color:var(--mute);text-decoration:none;padding:10px 0 0}
+.back:hover{color:var(--accent)}
+header.mast{border-bottom:3px double var(--rule);padding:6px 0 0;margin-bottom:22px}
+.mast h1{font-weight:400;font-size:30px;letter-spacing:-.01em;margin:6px 0 2px;line-height:1.1}
+.mast h1 i{color:var(--accent)}
+.dateline{font:11.5px/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.dateline b{color:var(--ink2);font-weight:600}
+nav.top{display:flex;gap:2px;overflow-x:auto;margin-top:12px;scrollbar-width:none}
+nav.top::-webkit-scrollbar{display:none}
+nav.top a{font:600 12px/1 var(--sans);letter-spacing:.03em;text-transform:uppercase;color:var(--ink2);text-decoration:none;padding:10px 6px 11px;border-bottom:2px solid transparent;white-space:nowrap}
+nav.top a.on{color:var(--accent);border-bottom-color:var(--accent)}
+h2{font-weight:400;font-size:24px;margin:34px 0 8px;line-height:1.2}
+h2:first-child{margin-top:4px}
+h3{font-weight:700;font-size:18px;margin:0 0 6px}
+.kicker{font:600 11px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:30px 0 8px;display:flex;align-items:center;gap:10px}
+.kicker:after{content:"";flex:1;border-top:1px solid var(--rule)}
+p{margin:.5em 0}
+.lede{font-size:26px;line-height:1.35;margin:0 0 10px}
+.lede .big{font-weight:700}
+.small{font-size:14.5px;color:var(--ink2)}
+.mute{color:var(--mute)}
+.sans{font-family:var(--sans)}
+.num{font-variant-numeric:tabular-nums}
+.tok{font:inherit;font-weight:700;color:var(--hl-ink);background:linear-gradient(transparent 58%,var(--hl) 58%);border:0;border-bottom:1.5px dotted var(--accent);padding:0 .12em;margin:0;cursor:pointer;border-radius:2px;line-height:inherit;text-align:left}
+.tok:hover,.tok:focus-visible,.tok.open{background:var(--hl);outline:none}
+.tok.ro{cursor:default;border-bottom-color:transparent}
+.pill{display:inline-flex;align-items:center;gap:6px;font:700 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;padding:6px 10px;border-radius:999px;vertical-align:middle}
+.pill.on{background:var(--on-bg);color:var(--on)}
+.pill.off{background:var(--off-bg);color:var(--off)}
+.pill.unk{background:var(--paper2);color:var(--ink2)}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.pill.on .dot{animation:pulse 1.8s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.banner{border-left:4px solid var(--warn);background:var(--warn-bg);padding:10px 14px;margin:14px 0;font-size:15.5px}
+.banner.info{border-color:var(--accent);background:var(--accent-soft)}
+.banner.err{border-color:var(--err)}
+.why{font-size:15px;color:var(--ink2);border-top:1px solid var(--rule);padding-top:10px;margin-top:14px}
+.facts{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border-top:1px solid var(--rule)}
+.fact{padding:12px 10px 12px 0;border-bottom:1px solid var(--rule)}
+.fact:nth-child(odd){padding-right:14px;border-right:1px solid var(--rule)}
+.fact:nth-child(even){padding-left:14px}
+.fact .k{font:600 10.5px/1.2 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.fact .v{font-size:22px;line-height:1.25;margin-top:3px}
+.fact .s{font:13px/1.35 var(--sans);color:var(--ink2);margin-top:2px}
+@media(min-width:700px){.facts{grid-template-columns:repeat(4,1fr)}.fact,.fact:nth-child(odd),.fact:nth-child(even){padding:12px 14px;border-right:1px solid var(--rule)}.fact:nth-child(4n){border-right:0}.fact:nth-child(4n+1){padding-left:0}}
+.btn{font:600 14px/1 var(--sans);border:1px solid var(--ink);background:transparent;color:var(--ink);padding:10px 14px;border-radius:4px;cursor:pointer}
+.btn:hover{background:var(--paper2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.quiet{border-color:var(--rule);color:var(--ink2)}
+.btn.danger{border-color:var(--err);color:var(--err)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.link{border:0;padding:4px 0;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:16px 16px 12px;margin:14px 0;position:relative}
+.card.cur{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.card-h{padding-right:64px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.card-h .tok{font-size:22px;font-weight:400}
+.tag{font:600 10.5px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:3px;background:var(--accent-soft);color:var(--accent)}
+.tag.w{background:var(--warn-bg);color:var(--warn)}
+.x{border:0;background:none;color:var(--mute);cursor:pointer;font:16px/1 var(--sans);padding:4px 6px;border-radius:3px}
+.x:hover{color:var(--err);background:var(--paper2)}
+.card .x.del{position:absolute;top:10px;right:10px;font-size:12px;font-weight:600;letter-spacing:.04em}
+.sent{margin:6px 0;padding:6px 0}
+.blocks{list-style:none;margin:6px 0 0;padding:0;counter-reset:b}
+.blocks li{position:relative;padding:9px 30px 9px 30px;border-top:1px dashed var(--rule)}
+.blocks li:before{counter-increment:b;content:counter(b);position:absolute;left:0;top:11px;font:600 12px/20px var(--sans);width:20px;text-align:center;border:1px solid var(--rule);border-radius:50%;color:var(--mute)}
+.blocks li.act:before{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.blocks li.hit{background:linear-gradient(90deg,var(--hl),transparent 80%)}
+.blocks li .x{position:absolute;right:0;top:8px}
+.blocks .note{font-size:13.5px;color:var(--mute);font-family:var(--sans)}
+.add{font:600 13.5px/1 var(--sans);color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:3px;padding:8px 12px;cursor:pointer;margin-top:6px}
+.add:hover{background:var(--accent-soft)}
+.warns{margin:6px 0 0;padding:0;list-style:none}
+.warns li{font:13.5px/1.4 var(--sans);color:var(--warn);padding:2px 0 2px 18px;position:relative}
+.warns li:before{content:"!";position:absolute;left:3px;font-weight:800}
+.warns li.e{color:var(--err)}
+.savebar{position:sticky;bottom:0;z-index:5;background:var(--paper);border-top:2px solid var(--accent);padding:10px 0;margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.savebar .msg{flex:1;min-width:160px;font:14px/1.3 var(--sans);color:var(--ink2)}
+.pop{position:absolute;z-index:50;background:var(--card);border:1px solid var(--ink2);box-shadow:0 10px 30px rgba(0,0,0,.18);border-radius:4px;padding:12px;width:300px;max-width:calc(100vw - 24px);font:14px/1.4 var(--sans)}
+.pop label{display:block;font-weight:600;margin-bottom:6px;color:var(--ink2)}
+.pop .help{color:var(--mute);font-size:12.5px;margin-top:6px}
+.pop input[type=number],.pop input[type=text],.pop input[type=time]{width:100%;padding:8px;border:1px solid var(--rule);background:var(--paper);border-radius:3px;font-size:16px}
+.pop .opts{display:flex;flex-direction:column;gap:2px;margin:-4px}
+.pop .opt{display:block;text-align:left;border:0;background:none;padding:8px;border-radius:3px;cursor:pointer}
+.pop .opt:hover,.pop .opt.sel{background:var(--accent-soft)}
+.pop .opt b{display:block;font-family:var(--serif);font-size:15.5px}
+.pop .opt span{color:var(--mute);font-size:12.5px}
+.pop .opt:disabled{opacity:.4;cursor:not-allowed}
+.pop .acts{display:flex;gap:6px;justify-content:flex-end;margin-top:10px}
+.pop .acts .btn{padding:7px 12px;font-size:13px}
+.pop .err{color:var(--err);font-size:12.5px;margin-top:6px;min-height:0}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1px solid var(--rule);background:var(--paper);border-radius:999px;padding:6px 10px;cursor:pointer;font:600 12.5px/1 var(--sans)}
+.chip.sel{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.sim{background:var(--paper2);border:1px solid var(--rule);border-radius:3px;padding:14px 16px;margin:14px 0}
+.sim h3{font-weight:400;font-size:21px}
+.sim label{display:block;font:13px/1.3 var(--sans);color:var(--ink2);margin-top:10px}
+.sim label b{font:700 15px var(--serif);color:var(--ink)}
+.sim input[type=range]{width:100%;accent-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+.seg button{border:0;background:var(--paper);padding:6px 10px;font:600 12.5px/1 var(--sans);cursor:pointer}
+.seg button.sel{background:var(--accent);color:var(--paper)}
+.sim select{padding:5px;border:1px solid var(--rule);background:var(--paper);border-radius:3px;font-size:14px}
+.simout{margin-top:12px;border-top:1px solid var(--rule);padding-top:10px}
+.simout ol{margin:0;padding-left:20px;font-size:15px}
+.simout li{margin:5px 0}
+.verdict{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:18px}
+@media(min-width:1060px){.rules-grid{display:grid;grid-template-columns:1fr 330px;gap:26px;max-width:1150px}.rules-grid .sim{position:sticky;top:12px;margin-top:0}.wrap.wide{max-width:1150px}}
+.field{margin:14px 0}
+.field>label{display:block;font-weight:700;margin-bottom:4px}
+.field .help{font:13.5px/1.45 var(--sans);color:var(--mute);margin-top:4px}
+.field input[type=text],.field input[type=number],.field input[type=password],.field input[type=url],.field select,textarea{width:100%;max-width:440px;padding:9px 10px;border:1px solid var(--rule);background:var(--card);border-radius:3px;font:15px var(--sans)}
+.field input.bad{border-color:var(--err)}
+.field .ferr{font:13px var(--sans);color:var(--err);margin-top:4px}
+.field .inl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field .inl input{width:110px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:16px}
+.check input{margin-top:5px;accent-color:var(--accent)}
+fieldset{border:0;border-top:2px solid var(--ink);padding:6px 0 4px;margin:30px 0 0}
+legend{font-size:22px;padding:0 10px 0 0}
+fieldset>.intro{color:var(--ink2);font-size:15.5px;margin:4px 0 10px}
+textarea{max-width:none;font:13px/1.45 var(--mono);min-height:240px}
+.log{list-style:none;padding:0;margin:0;font-size:15px}
+.log li{display:grid;grid-template-columns:88px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule)}
+.log time{font:12.5px/1.6 var(--sans);color:var(--mute);font-variant-numeric:tabular-nums}
+.log .k-on{color:var(--on)}.log .k-off{color:var(--off)}.log .k-err{color:var(--err)}
+table{border-collapse:collapse;width:100%;font:14px/1.4 var(--sans);font-variant-numeric:tabular-nums}
+th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);text-align:left;font-weight:600;padding:6px 6px 6px 0;border-bottom:1px solid var(--ink)}
+td{padding:7px 6px 7px 0;border-bottom:1px solid var(--rule)}
+td.r,th.r{text-align:right}
+.tblw{overflow-x:auto}
+svg text{font-family:var(--sans);font-size:11px;fill:var(--mute)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font:12.5px var(--sans);color:var(--ink2);margin:6px 0}
+.legend i{display:inline-block;width:16px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+.prog{height:10px;background:var(--paper2);border:1px solid var(--rule);border-radius:2px;overflow:hidden;margin:8px 0}
+.prog div{height:100%;background:var(--accent);transition:width .25s}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:15.5px;margin:6px 0}
+.dl dt{font:600 11px/1.9 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.dl dd{margin:0}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);font:14px/1.35 var(--sans);padding:11px 16px;border-radius:4px;z-index:90;transition:.25s;max-width:calc(100vw - 32px);pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.demo{position:fixed;right:10px;bottom:10px;z-index:80;font:12px/1.3 var(--sans)}
+.demo>button{background:var(--card);border:1px solid var(--rule);border-radius:999px;padding:7px 11px;cursor:pointer;color:var(--ink2);box-shadow:0 2px 8px rgba(0,0,0,.1);font-weight:600}
+.demo .menu{position:absolute;right:0;bottom:38px;background:var(--card);border:1px solid var(--rule);border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.18);width:250px;padding:6px;display:none}
+.demo.open .menu{display:block}
+.demo .menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 8px;border-radius:3px;cursor:pointer}
+.demo .menu button:hover,.demo .menu button.sel{background:var(--accent-soft)}
+.demo .menu .t{font:600 10px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);padding:4px 8px}
+footer{margin:50px 0 70px;border-top:3px double var(--rule);padding-top:10px;font:12.5px/1.6 var(--sans);color:var(--mute)}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.nets{list-style:none;padding:0;margin:8px 0;max-width:440px}
+.nets li{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--rule);border-top:0;cursor:pointer;font:14.5px var(--sans);background:var(--card)}
+.nets li:first-child{border-top:1px solid var(--rule)}
+.nets li:hover{background:var(--accent-soft)}
+details.raw{margin-top:30px;border-top:1px solid var(--rule);padding-top:8px}
+details.raw summary{cursor:pointer;font:600 13px var(--sans);color:var(--ink2);letter-spacing:.04em}
+.drop{float:left;font-size:3.1em;line-height:.82;padding:6px 8px 0 0;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <a class="back" href="index.html">← all options</a>
+  <header class="mast">
+    <div class="dateline" id="dateline"></div>
+    <h1>The <i>Bolt</i> Charger</h1>
+    <nav class="top" id="nav"></nav>
+  </header>
+  <main id="main"></main>
+  <footer>Charger control · plain-language prototype (Option 3) · <a href="#about">About this device</a> · all data on this page is mocked.</footer>
+</div>
+<div class="demo" id="demo"><button type="button" id="demoBtn">Demo scenario ▴</button><div class="menu" id="demoMenu"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clone=o=>JSON.parse(JSON.stringify(o));
+const pad=n=>String(n).padStart(2,"0");
+const r1=x=>Math.round(x*10)/10;
+const neg=s=>s.replace(/^-/,"−");
+const fc=p=>p==null||isNaN(p)?"—":neg(r1(p).toFixed(1))+"¢";          // a measured price, 1 decimal
+const ft=p=>neg(String(+(+p).toFixed(2)))+"¢";                         // a threshold, as written
+const fhm=(h,m)=>{h=((h%24)+24)%24;const ap=h<12?"am":"pm";const hh=h%12||12;return m?hh+":"+pad(m)+" "+ap:hh+(m===0?":00":"")+" "+ap;};
+const fhs=h=>{h=((h%24)+24)%24;return (h%12||12)+(h<12?" am":" pm");};
+const parseHM=s=>{const [h,m]=s.split(":").map(Number);return {h,m};};
+const fT=s=>{const t=parseHM(s);return fhm(t.h,t.m);};
+const ago=min=>min==null?"never":min<1?"just now":min<60?Math.round(min)+" min ago":Math.floor(min/60)+" h "+Math.round(min%60)+" min ago";
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], DAYL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const OPS={">=":"at or above",">":"above","<=":"at or below","<":"below"};
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("show"),2800);}
+
+/* ---------- mock data (what the /api/* endpoints would return) ---------- */
+const LOGIC_JSON={"states":{"Разряд":{"entry_conditions":[{"type":"soc","value":80,"operator":">="}],"charging_logic":[{"soc":70,"price_on":-1,"price_off":-0.5,"known_minutes":30},{"soc":20,"price_on":-0.5,"price_off":0,"known_minutes":20},{"soc":0,"price_on":2,"price_off":3}]},"Заряд":{"entry_conditions":[{"type":"soc","value":20,"operator":"<="}],"charging_logic":[{"soc":80,"price_on":-1,"price_off":-0.5,"known_minutes":20},{"soc":40,"price_on":0,"price_off":0.5,"known_minutes":20},{"soc":0,"price_on":2,"price_off":3}]},"Поездка":{"entry_conditions":[],"charging_logic":[{"soc":0,"price_on":3,"price_off":3}]}}};
+// Day-ahead by hour START (0 = midnight-1am). Converted to ComEd hour-ending indexes below.
+const DA_TODAY=[1.4,1.1,0.9,0.8,0.9,1.3,2.2,3.0,3.1,3.0,3.2,3.6,4.0,4.6,5.2,5.8,6.1,5.4,4.3,3.6,3.0,2.5,2.0,1.7];
+const DA_TOMOR=[1.2,0.6,-0.1,-0.3,0.2,0.9,2.0,2.8,3.0,3.1,3.3,3.5,3.9,4.2,4.8,5.1,5.3,4.9,4.0,3.4,2.9,2.4,2.1,1.8];
+const toEnding=a=>{const r=new Array(24);a.forEach((v,h)=>r[(h+1)%24]=v);return r;};
+
+const M={
+  scenario:1,
+  now:{dow:6,h:1,m:35},
+  status:{},
+  config:{
+    mode:"auto", schedFall:"price", until:null, socTarget:80,
+    schedule:[{days:[1,2,3,4,5],start:"01:00",end:"05:00"},{days:[0,6],start:"00:00",end:"06:00"}],
+    wifi:{ssid:"Syrota-Home"}, pushover:{enabled:true,token:"azGDORePK8gMaC0QOYAMyEEuzJnyUi",user:"uQiRzpo4DXghDmr9QzzfQu27cmVRsG",device:"sergey-iphone"},
+    mac:"8C:DE:52:DE:B4:A0", pollOn:60, pollOff:60, thresholdW:500, sign:"abs", relayActiveHigh:true, defaultRelay:false,
+    probeDelay:30, staleMin:20, fullHold:0, wifiTimeout:300,
+    otaUrl:"https://github.com/sergesyrota/charger-cost-control/releases/latest/download/manifest.json"
+  },
+  min_offset:0.5,
+  logic:clone(LOGIC_JSON),
+  prices:{},
+  log:[],
+  sessions:[
+    {d:"Fri Nov 6",s:"1:20 am",e:"4:55 am",soc0:31,soc1:52,kwh:13.9,cost:16.8},
+    {d:"Wed Nov 4",s:"12:40 am",e:"5:10 am",soc0:22,soc1:49,kwh:17.6,cost:14.1},
+    {d:"Tue Nov 3",s:"2:20 am",e:"2:45 am",soc0:58,soc1:61,kwh:2.1,cost:-0.6},
+    {d:"Sun Nov 1",s:"11:15 pm",e:"6:05 am",soc0:18,soc1:63,kwh:29.3,cost:41.0},
+    {d:"Fri Oct 30",s:"1:05 am",e:"1:50 am",soc0:44,soc1:44,kwh:0,cost:0,nc:true},
+    {d:"Wed Oct 28",s:"12:30 am",e:"4:40 am",soc0:40,soc1:67,kwh:17.4,cost:19.5}
+  ],
+  daily:[], months:[
+    {m:"November (so far)",kwh:63.0,cost:72.1},{m:"October",kwh:214.6,cost:301.4},{m:"September",kwh:188.2,cost:276.0},
+    {m:"August",kwh:241.0,cost:409.7},{m:"July",kwh:226.5,cost:362.4},{m:"June",kwh:198.3,cost:267.7}
+  ]
+};
+for(let i=13;i>=0;i--){const k=[11.2,0,17.6,2.1,0,29.3,0,0,17.4,8.8,0,21.5,13.9,0][13-i];M.daily.push({label:i===0?"Today":(i===1?"Fri":DAYS[(6-i%7+7)%7]),kwh:k,cost:k*(0.6+((i*37)%17)/10)});}
+
+/* ---------- scenarios ---------- */
+const SCEN=[
+ null,
+ {name:"Charging",desc:"Relay on, 1.2¢, Bolt pulling 6.8 kW at 52%",now:{dow:6,h:1,m:35},
+  st:{relay:true,clockValid:true,pricesKnown:true,price:1.2,estimated:false,ageMin:2,sticky:"Поездка",
+      car:{status:"charging",soc:52,socAge:0,kw:6.8},session:{since:"1:20 am",kwh:1.8,cost:2.3},uptime:3*86400+5*3600+12*60,reset:"Software (OTA update)",rollback:false,onSpans:[[1.333,1.583]]},
+  cfg:{mode:"auto",until:null},sel:"Поездка"},
+ {name:"Waiting",desc:"Relay off, 4.1¢ is above the stop price, car asleep at 64%",now:{dow:6,h:17,m:40},
+  st:{relay:false,clockValid:true,pricesKnown:true,price:4.1,estimated:false,ageMin:3,sticky:"Заряд",
+      car:{status:"asleep",soc:64,socAge:38,kw:null},session:null,uptime:3*86400+21*3600,reset:"Software (OTA update)",rollback:false,onSpans:[[1.333,4.92]]},
+  cfg:{mode:"auto",until:null},sel:""},
+ {name:"On, car not charging",desc:"Schedule turned it on, but the Bolt isn't detected",now:{dow:6,h:2,m:10},
+  st:{relay:true,clockValid:true,pricesKnown:true,price:1.0,estimated:true,ageMin:27,sticky:"Заряд",
+      car:{status:"not_detected",soc:47,socAge:192,kw:null},session:{since:"12:00 am",kwh:0,cost:0},uptime:3*86400+5*3600+47*60,reset:"Software (OTA update)",rollback:false,onSpans:[[0,2.167]]},
+  cfg:{mode:"schedule",schedFall:"price",until:null},sel:""},
+ {name:"Booting / unknown",desc:"Just restarted: no clock, no prices → default OFF",now:null,
+  st:{relay:false,clockValid:false,pricesKnown:false,price:null,estimated:false,ageMin:null,sticky:"Заряд",
+      car:{status:"not_detected",soc:58,socAge:null,kw:null},session:null,uptime:42,reset:"Brown-out",rollback:true,onSpans:[]},
+  cfg:{mode:"auto",until:null},sel:""},
+ {name:"Manual ON until 6 am",desc:"You forced charging on until 06:00",now:{dow:6,h:23,m:20},
+  st:{relay:true,clockValid:true,pricesKnown:true,price:1.9,estimated:false,ageMin:1,sticky:"Заряд",
+      car:{status:"charging",soc:33,socAge:1,kw:7.1},session:{since:"10:45 pm",kwh:4.4,cost:9.1},uptime:4*86400+2*3600,reset:"Software (OTA update)",rollback:false,onSpans:[[1.333,4.92],[22.75,23.333]]},
+  cfg:{mode:"manual_on",until:"06:00"},sel:""}
+];
+function baseLog(n){
+  const L=[
+   {t:"Fri 1:20 am",k:"on",msg:"ON: Price is low (1.1¢ ≤ 2¢) — Bolt/Заряд soc≥0. Charging started: 6.7 kW, 31%."},
+   {t:"Fri 1:20 am",k:"push",msg:"Pushover sent (ON)."},
+   {t:"Fri 4:55 am",k:"off",msg:"OFF: Price is high (3.1¢ > 3¢), Bolt/Заряд (52%, 1m ago)."},
+   {t:"Fri 4:55 am",k:"push",msg:"Pushover sent (OFF)."},
+   {t:"Fri 11:02 am",k:"err",msg:"ComEd 5-minute feed: HTTP 503 — kept previous prices (fresh for 20 min)."},
+   {t:"Sat 1:20 am",k:"on",msg:"ON: Price is low (1.1¢ ≤ 3¢) — Bolt/Поездка soc≥0. Charging started: 6.8 kW, 49%."},
+   {t:"Sat 1:20 am",k:"push",msg:"Pushover sent (ON)."}
+  ];
+  if(n===2)L.push({t:"Sat 4:55 am",k:"off",msg:"OFF: Price is high (3.2¢ > 0.5¢), Bolt/Заряд (63%, 1m ago)."},{t:"Sat 9:10 am",k:"info",msg:"State select changed: Поездка → choose automatically."});
+  if(n===3)L.push({t:"Sat 12:00 am",k:"on",msg:"ON: Schedule window Sat–Sun 12:00 am–6:00 am. Car not detected."},{t:"Sat 12:01 am",k:"push",msg:"Pushover sent (ON)."});
+  if(n===4)L.push({t:"Sat 6:42 pm",k:"err",msg:"Brown-out reset."},{t:"up 0:00:01",k:"info",msg:"Boot 1.3.2 — relay set to default (OFF)."},{t:"up 0:00:03",k:"info",msg:"Running from rollback partition (1.4.0-rc1 did not confirm)."},{t:"up 0:00:09",k:"info",msg:"Wi-Fi connected: Syrota-Home, 192.168.1.47."},{t:"up 0:00:38",k:"err",msg:"NTP: no response yet, retrying."});
+  if(n===5)L.push({t:"Sat 10:45 pm",k:"on",msg:"Manual: ON until 6:00 am. Charging started: 7.1 kW, 28%."},{t:"Sat 10:45 pm",k:"push",msg:"Pushover sent (Manual ON)."});
+  return L.reverse();
+}
+function loadScenario(n){
+  const S=SCEN[n];M.scenario=n;M.now=S.now?{...S.now}:null;
+  M.status=Object.assign({rssi:-61,ip:"192.168.1.47",ssid:"Syrota-Home",heap:{free:112400,min:74200,largest:57300},fw:"1.3.2",fwDate:"Oct 28",mac:M.config.mac,hotspot:false},clone(S.st));
+  Object.assign(M.config,S.cfg);
+  M.logic.state_select=S.sel; if(Draft&&!Draft.dirty)Draft=null; else if(Draft)Draft.sel=S.sel;
+  M.log=baseLog(n);
+  buildPrices();
+}
+function buildPrices(){
+  const now=M.now; const P=M.prices;
+  P.today=toEnding(DA_TODAY); P.tomorrow=(now&&now.h>=17)?toEnding(DA_TOMOR):null;
+  const nh=now?now.h+now.m/60:0;
+  P.actual=DA_TODAY.map((v,h)=>now&&h+1<=nh?r1(v+0.45*Math.sin(h*1.7)):NaN);
+  P.five=[];
+  if(now&&M.status.price!=null&&!M.status.estimated){
+    const cur=M.status.price, da=DA_TODAY[now.h];
+    for(let t=-180;t<=0;t+=5){const x=nh+t/60;if(x<0)continue;const base=DA_TODAY[Math.floor(x)]; P.five.push([x,r1(base+(cur-da)*(1+t/180)+0.35*Math.sin(t/7))]);}
+  }
+}
+// ComEd-style derived values (PLAN §6.2)
+function lowestBy7am(){
+  if(!M.now||!M.status.pricesKnown)return null;const P=M.prices,h=M.now.h;let c=[];
+  if(h<17)c=P.today.slice(0,8);else{c=P.today.slice((h+1)%24,24);if(P.tomorrow)c=c.concat(P.tomorrow.slice(0,8));}
+  c=c.filter(v=>v!=null&&!isNaN(v));return c.length?r1(Math.min(...c)):null;
+}
+const minPrice=()=>{const l=lowestBy7am();return l==null?null:r1(l+M.min_offset);};
+function daAt(dayOffset,h){const a=dayOffset?M.prices.tomorrow:M.prices.today;return a?a[(h+1)%24]:null;}
+
+/* ---------- mock API surface ---------- */
+const API={
+  status:()=>({relay:M.status.relay,...evaluate(false),price:{current:M.status.price,estimated:M.status.estimated,age_min:M.status.ageMin,lowest_by_7am:lowestBy7am(),min_price:minPrice()},car:M.status.car,clock_valid:M.status.clockValid,wifi:{rssi:M.status.rssi,ip:M.status.ip},heap:M.status.heap,fw:M.status.fw,uptime:M.status.uptime}),
+  prices:()=>M.prices, config:()=>M.config, logic:()=>M.logic, log:()=>M.log,
+  "stats/sessions":()=>M.sessions, "stats/daily":()=>M.daily
+};
+
+/* ---------- logic model: array form for editing, JSON form for storage ---------- */
+function toArr(j){return {sel:j.state_select||"",states:Object.keys(j.states||{}).map(name=>{const s=j.states[name];return {name,entry:clone(s.entry_conditions||[]),blocks:clone(s.charging_logic||[])};})};}
+function toJson(a){const o={};if(a.sel)o.state_select=a.sel;o.states={};a.states.forEach(s=>{o.states[s.name]={entry_conditions:s.entry.map(c=>({type:"soc",value:c.value,operator:c.operator})),charging_logic:s.blocks.map(b=>{const r={soc:b.soc,price_on:b.price_on,price_off:b.price_off};if(b.known_minutes)r.known_minutes=b.known_minutes;return r;})};});return o;}
+let Draft=null; // {sel,states,dirty}
+function draft(){if(!Draft){Draft=toArr(M.logic);Draft.dirty=false;}return Draft;}
+const cmp=(a,op,b)=>op===">="?a>=b:op===">"?a>b:op==="<="?a<=b:a<b;
+
+// Exact port of Vehicle::getApplicableLogic + controlCharging (PLAN §7.3), operators literal.
+function decide(L,soc,price,minute,relayNow,sticky,minP){
+  const out={};
+  const forced=L.sel&&L.states.find(s=>s.name===L.sel);
+  if(forced){out.state=L.sel;out.how="forced";}
+  else{
+    const hit=L.states.find(s=>s.entry.length&&s.entry.every(c=>cmp(soc,c.operator,c.value)));
+    if(hit){out.state=hit.name;out.how="entered";out.conds=hit.entry;}else{out.state=sticky;out.how="sticky";}
+  }
+  out.si=L.states.findIndex(s=>s.name===out.state);
+  let st=L.states[out.si];
+  if(!st||!st.blocks.length){const d=L.states.find(s=>s.name==="default");if(d&&d.blocks.length){st=d;out.usedDefault=true;out.si=L.states.indexOf(d);}else{out.none=true;return out;}}
+  let bi=st.blocks.findIndex(b=>soc>=b.soc);out.fallback=bi<0;if(bi<0)bi=st.blocks.length-1;
+  out.bi=bi;out.block=st.blocks[bi];
+  const res=v=>v==="min"?minP:+v;
+  out.on=res(out.block.price_on);out.off=res(out.block.price_off);
+  if(out.on==null||out.off==null){out.noMin=true;return out;}
+  const km=out.block.known_minutes;out.enough=!km||minute>=km;
+  if(relayNow&&price>out.off){out.relay=false;out.why="price is high";out.change=true;}
+  else if(relayNow&&!out.enough){out.relay=false;out.why="not enough confidence yet";out.change=true;}
+  else if(!relayNow&&price<=out.on&&out.enough){out.relay=true;out.why="price is low";out.change=true;}
+  else{out.relay=relayNow;out.change=false;out.why=relayNow?"price still at or below the stop price":(price<=out.on?"price is low, but waiting for :"+pad(km)+" to be sure":"price is above the start price");}
+  return out;
+}
+function inWindow(){
+  if(!M.now)return null;const t=M.now.h*60+M.now.m;
+  for(const w of M.config.schedule){const a=parseHM(w.start),b=parseHM(w.end),s=a.h*60+a.m,e=b.h*60+b.m;
+    if(s<e){if(w.days.includes(M.now.dow)&&t>=s&&t<e)return w;}
+    else if(s>e){if((w.days.includes(M.now.dow)&&t>=s)||(w.days.includes((M.now.dow+6)%7)&&t<e))return w;}}
+  return null;
+}
+function nextWindowStart(){
+  if(!M.now)return null;const t=M.now.h*60+M.now.m;
+  for(let d=0;d<8;d++){const dow=(M.now.dow+d)%7;let best=null;
+    for(const w of M.config.schedule){if(!w.days.includes(dow))continue;const a=parseHM(w.start),s=a.h*60+a.m;if(d===0&&s<=t)continue;if(best==null||s<best)best=s;}
+    if(best!=null)return {d,dow,h:Math.floor(best/60),m:best%60};}
+  return null;
+}
+const MODES={auto:"by price",schedule:"on a schedule",manual_on:"always on",manual_off:"always off"};
+function modeKey(){const c=M.config;return c.mode==="schedule"?(c.schedFall==="price"?"schedule_price":"schedule"):c.mode;}
+
+// The precedence engine (PLAN §7.1/7.2). apply=true commits the relay change + logs it.
+function evaluate(apply){
+  const S=M.status,C=M.config,R={mode:modeKey()};
+  const soc=S.car.soc==null?0:S.car.soc;
+  const dflt=why=>{R.relay=C.defaultRelay;R.kind="default";R.reason=why+" — using your default ("+(C.defaultRelay?"ON":"OFF")+")";};
+  if(C.mode==="manual_on"||C.mode==="manual_off"){R.relay=C.mode==="manual_on";R.kind="manual";R.reason="Manual "+(R.relay?"ON":"OFF")+(C.until&&S.clockValid?" until "+fT(C.until):"");}
+  else if(!S.clockValid){dflt("Clock not set yet");}
+  else{
+    let w=null;
+    if(C.mode==="schedule"){w=inWindow();if(w){R.relay=true;R.kind="schedule";R.win=w;R.reason="Schedule window "+daysText(w.days)+" "+fT(w.start)+"–"+fT(w.end);}
+      else if(C.schedFall==="off"){R.relay=false;R.kind="schedule";R.reason="Outside schedule windows (schedule only)";}}
+    if(R.relay===undefined){
+      if(!S.pricesKnown||S.price==null)dflt("Prices unknown");
+      else if(C.socTarget&&S.car.soc!=null&&S.car.soc>=C.socTarget){R.relay=false;R.kind="target";R.reason="SOC target "+C.socTarget+"% reached";}
+      else if(S.car.soc!=null&&Math.round(S.car.soc)>=100){R.relay=false;R.kind="full";R.reason="Bolt is full";}
+      else{
+        const d=decide(toArr(M.logic),soc,S.price,M.now.m,S.relay,S.sticky,minPrice());R.d=d;R.kind="price";
+        if(d.none||d.noMin)dflt(d.none?"State has no charging lines":"No forecast for “cheapest by 7am”");
+        else{R.relay=d.relay;R.reason=(d.relay?"Price is low":"Price is high");
+          if(d.why==="not enough confidence yet")R.reason="Not enough confidence yet";
+          R.reason+=" ("+fc(S.price)+(d.relay?" ≤ "+ft(d.off)+" stop":" vs "+ft(d.on)+" start")+") — "+d.state;}
+      }
+    }
+  }
+  if(apply){
+    if(R.d&&R.d.state)S.sticky=R.d.state;
+    if(R.relay!==S.relay){
+      S.relay=R.relay;const manual=R.kind==="manual";
+      M.log.unshift({t:nowStamp(),k:R.relay?"on":"off",msg:(manual?"Manual: ":"")+(R.relay?"ON: ":"OFF: ")+R.reason+"."});
+      if(C.pushover.enabled)M.log.unshift({t:nowStamp(),k:"push",msg:"Pushover sent ("+(R.relay?"ON":"OFF")+")."});
+      if(R.relay&&S.car.status==="online"){S.car.status="charging";S.car.kw=6.8;}
+      if(!R.relay&&S.car.status==="charging"){S.car.status="online";S.car.kw=0;}
+      if(R.relay&&!S.session)S.session={since:M.now?fhm(M.now.h,M.now.m):"now",kwh:0,cost:0};
+      if(!R.relay)S.session=null;
+    }
+  }
+  return R;
+}
+const nowStamp=()=>M.now?DAYS[M.now.dow]+" "+fhm(M.now.h,M.now.m):"up "+upTxt(M.status.uptime);
+const upTxt=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+" d "+h+" h":(h?h+":"+pad(m)+":"+pad(s%60):"0:"+pad(m)+":"+pad(s%60));};
+function daysText(d){const s=[...d].sort();const k=s.join("");
+  if(k==="0123456")return "every day";if(k==="12345")return "weekdays";if(k==="06")return "weekends";if(!s.length)return "no days";
+  return s.map(x=>DAYS[x]).join(", ");}
+
+// When will it next charge? (forecast from day-ahead)
+function nextCharge(R){
+  const C=M.config,S=M.status;
+  if(!S.clockValid)return "As soon as the clock syncs and prices arrive, I'll decide again.";
+  if(C.mode==="manual_off")return "Not until you switch me back to price or schedule.";
+  const nw=C.mode==="schedule"?nextWindowStart():null;
+  const nwTxt=nw?(nw.d===0?"today":nw.d===1?"tomorrow":DAYL[nw.dow])+" at "+fhm(nw.h,nw.m):null;
+  if(C.mode==="schedule"&&C.schedFall==="off")return nwTxt?"The next schedule window starts "+nwTxt+".":"No schedule windows are set.";
+  if(!R.d||R.d.on==null)return nwTxt?"The next schedule window starts "+nwTxt+".":"I can't forecast without prices.";
+  const on=R.d.on;let found=null;
+  for(let k=1;k<=24;k++){const hh=M.now.h+k,day=hh>=24?1:0,h=hh%24;const p=daAt(day,h);if(p==null){break;}if(p<=on){found={h,day,p};break;}}
+  let txt=found?"Day-ahead prices say it should dip to "+fc(found.p)+" around "+fhs(found.h)+(found.day?" tomorrow":"")+" — that's at or below the "+ft(on)+" start price."
+    :"The forecast I have"+(M.prices.tomorrow?" (through tomorrow)":" (tomorrow's comes at 5 pm)")+" doesn't get down to "+ft(on)+", so no charge is expected yet.";
+  if(nwTxt)txt+=" The schedule also turns it on "+nwTxt+".";
+  return txt;
+}
+
+/* ---------- inline token editor (popover) ---------- */
+let EDS={},edN=0,popEl=null,popBtn=null;
+function tok(label,spec,cls){const id="e"+(edN++);EDS[id]=spec;return '<button type="button" class="tok '+(cls||"")+'" data-ed="'+id+'" aria-haspopup="dialog">'+label+'</button>';}
+function closePop(){if(popEl){popEl.remove();popEl=null;}if(popBtn){popBtn.classList.remove("open");popBtn=null;}}
+function openPop(btn,spec){
+  closePop();popBtn=btn;btn.classList.add("open");
+  const p=document.createElement("div");p.className="pop";p.setAttribute("role","dialog");
+  let h=spec.title?'<label>'+spec.title+'</label>':"",val=spec.get();
+  if(spec.type==="choice"){
+    h+='<div class="opts">'+spec.options.map((o,i)=>'<button type="button" class="opt'+(o.v===val?" sel":"")+'" data-i="'+i+'"'+(o.disabled?" disabled":"")+'><b>'+o.label+'</b>'+(o.desc?'<span>'+o.desc+'</span>':"")+'</button>').join("")+'</div>';
+  }else if(spec.type==="days"){
+    p._days=new Set(val);
+    h+='<div class="chips">'+[1,2,3,4,5,6,0].map(d=>'<button type="button" class="chip'+(p._days.has(d)?" sel":"")+'" data-d="'+d+'">'+DAYS[d]+'</button>').join("")+'</div><div class="row" style="margin-top:8px"><button type="button" class="btn link" data-preset="12345">weekdays</button><button type="button" class="btn link" data-preset="06">weekends</button><button type="button" class="btn link" data-preset="0123456">every day</button></div>';
+  }else{
+    const t=spec.type==="time"?"time":spec.type==="text"?"text":"number";
+    const v=spec.type==="price"&&val==="min"?"":val;
+    h+='<div class="row" style="flex-wrap:nowrap"><input type="'+t+'" '+(t==="number"?'inputmode="decimal" step="'+(spec.step||1)+'"':"")+' value="'+esc(v==null?"":v)+'">'+(spec.unit?'<span style="white-space:nowrap">'+spec.unit+'</span>':"")+'</div>';
+    if(spec.type==="price"){const mp=minPrice();h+='<button type="button" class="opt'+(val==="min"?" sel":"")+'" data-min="1" style="margin-top:8px;width:100%;border:1px dashed var(--accent)"><b>cheapest by 7am (+'+ft(M.min_offset)+')</b><span>Uses the lowest day-ahead price before 7 am plus your margin'+(mp!=null?" — "+fc(mp)+" right now":"")+'.</span></button>';}
+  }
+  if(spec.help)h+='<div class="help">'+spec.help+'</div>';
+  h+='<div class="err"></div>';
+  if(spec.type!=="choice")h+='<div class="acts"><button type="button" class="btn quiet" data-c>Cancel</button><button type="button" class="btn primary" data-ok>Done</button></div>';
+  p.innerHTML=h;document.body.appendChild(p);popEl=p;
+  const r=btn.getBoundingClientRect(),w=p.offsetWidth;
+  p.style.top=(r.bottom+scrollY+6)+"px";p.style.left=Math.max(8,Math.min(r.left+scrollX,scrollX+document.documentElement.clientWidth-w-8))+"px";
+  const inp=p.querySelector("input");if(inp){inp.focus();inp.select&&inp.select();}
+  const commit=v=>{const e=spec.validate?spec.validate(v):null;if(e){p.querySelector(".err").textContent=e;return;}spec.set(v);closePop();(spec.after||afterEdit)();};
+  p.addEventListener("click",ev=>{
+    const o=ev.target.closest(".opt[data-i]");if(o){commit(spec.options[+o.dataset.i].v);return;}
+    if(ev.target.closest("[data-min]")){commit("min");return;}
+    const c=ev.target.closest(".chip");if(c){const d=+c.dataset.d;p._days.has(d)?p._days.delete(d):p._days.add(d);c.classList.toggle("sel");return;}
+    const pr=ev.target.closest("[data-preset]");if(pr){p._days=new Set(pr.dataset.preset.split("").map(Number));p.querySelectorAll(".chip").forEach(c=>c.classList.toggle("sel",p._days.has(+c.dataset.d)));return;}
+    if(ev.target.closest("[data-c]")){closePop();return;}
+    if(ev.target.closest("[data-ok]"))doOk();
+  });
+  function doOk(){
+    if(spec.type==="days"){commit([...p._days].sort());return;}
+    const raw=inp.value.trim();
+    if(spec.type==="text"||spec.type==="time"){commit(raw);return;}
+    if(raw===""){commit(spec.allowEmpty?null:NaN);return;}
+    commit(Number(raw));
+  }
+  p.addEventListener("keydown",e=>{if(e.key==="Enter"&&inp){e.preventDefault();doOk();}if(e.key==="Escape"){closePop();btn.focus();}});
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest(".tok[data-ed]");if(t){e.stopPropagation();if(t===popBtn){closePop();return;}openPop(t,EDS[t.dataset.ed]);return;}
+  if(popEl&&!popEl.contains(e.target))closePop();
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closePop();});
+let afterEdit=()=>render();
+
+/* ---------- router / chrome ---------- */
+const PAGES=[["today","Today"],["rules","Rules"],["schedule","Schedule"],["history","History"],["settings","Settings"]];
+const page=()=>{const h=location.hash.slice(1);return h==="about"||PAGES.some(p=>p[0]===h)?h:"today";};
+window.addEventListener("hashchange",()=>{closePop();render();scrollTo(0,0);});
+function chrome(){
+  const S=M.status;
+  $("#dateline").innerHTML=S.clockValid&&M.now?"<b>"+DAYL[M.now.dow]+", November 7</b> · "+fhm(M.now.h,M.now.m)+" Chicago · clock synced":"<b>Clock not set yet</b> · up "+upTxt(S.uptime)+" since restart";
+  const pg=page();$("#nav").innerHTML=PAGES.map(p=>'<a href="#'+p[0]+'"'+(pg===p[0]||(pg==="about"&&p[0]==="settings")?' class="on"':"")+">"+p[1]+"</a>").join("");
+  $("#wrap").classList.toggle("wide",pg==="rules");
+}
+function render(){EDS={};edN=0;chrome();const pg=page();$("#main").innerHTML=({today:pToday,rules:pRules,schedule:pSchedule,history:pHistory,settings:pSettings,about:pAbout})[pg]();if(pg==="rules")simRun();}
+
+/* ---------- Today ---------- */
+function carSentence(){
+  const c=M.status.car,s=M.status;
+  const soc=c.soc!=null?c.soc+"%":"unknown";
+  if(c.status==="charging")return "Your Bolt is charging at <span class=big>"+c.kw.toFixed(1)+" kW</span>, now at "+soc+".";
+  if(s.relay){if(c.status==="not_detected")return "The charger is <span class=big>on</span>, but I can't see your Bolt.";return "The charger is <span class=big>on</span>, but your Bolt isn't drawing power.";}
+  const where={asleep:"Your Bolt is asleep",online:"Your Bolt is awake",not_detected:"I can't see your Bolt"}[c.status];
+  return "The charger is <span class=big>off</span>. "+where+(c.status!=="not_detected"?" at "+soc:" (last known "+soc+")")+".";
+}
+function priceSentence(R){
+  const S=M.status;if(!S.clockValid||!S.pricesKnown||S.price==null)return "";
+  const p=fc(S.price);
+  if(R.kind!=="price"||!R.d)return " Electricity costs "+p+" right now.";
+  const d=R.d;const word=S.price<=d.on?"cheap":S.price>d.off?"too expensive":"in between";
+  return " Electricity is "+word+" right now ("+p+").";
+}
+function planSentence(R){
+  const S=M.status,C=M.config;
+  if(R.kind==="default")return " I've just restarted and don't know the time yet, so I can't trust any prices. Until I can, the charger stays "+(C.defaultRelay?"on":"off")+" — that's your default.";
+  if(R.kind==="manual")return R.relay?(C.until&&S.clockValid?" You switched it on by hand; I'll go back to "+(C.schedFall?"deciding":"deciding")+" by myself at "+fT(C.until)+".":" You switched it on by hand and it stays on until you change it."):" You switched it off by hand.";
+  if(R.kind==="schedule")return R.relay?" The schedule keeps it on until "+fT(R.win.end)+".":" It's outside your schedule, and you've asked for schedule only.";
+  if(R.kind==="target")return " It's reached your "+C.socTarget+"% limit, so I've stopped.";
+  if(R.kind==="full")return " The battery is full.";
+  const d=R.d;
+  if(R.relay)return " I'll stop if it goes above "+ft(d.off)+".";
+  if(d.enough===false&&S.price<=d.on)return " It's low enough, but I'll wait until :"+pad(d.block.known_minutes)+" past the hour to be sure.";
+  return " I'll start when it's "+ft(d.on)+" or less.";
+}
+function pToday(){
+  const S=M.status,C=M.config,R=evaluate(false),c=S.car,mk=modeKey();
+  const lw=lowestBy7am(),mp=minPrice();
+  const pillCls=R.kind==="default"?"unk":S.relay?"on":"off";
+  let h='<p class="lede">'+carSentence()+priceSentence(R)+planSentence(R)+'</p>';
+  if(S.relay&&c.status!=="charging")h+='<div class="banner"><b>Heads up:</b> the charger is switched on, but '+(c.status==="not_detected"?"I can't reach the car's OBD dongle — is the Bolt in the garage and plugged in?":"the Bolt isn't drawing power — is the cable seated?")+' (No notification is sent for this; it only shows here.)</div>';
+  if(R.kind==="default")h+='<div class="banner info">Why off? The clock hasn\'t synced (NTP), so schedules, timed overrides and price decisions are all paused. ComEd prices also need the clock for HTTPS. This normally clears within a minute of Wi-Fi connecting.</div>';
+  if(!S.relay&&R.kind!=="default")h+='<p class="small"><b>When will it next charge?</b> '+nextCharge(R)+'</p>';
+  h+='<p class="why"><span class="pill '+pillCls+'"><span class="dot"></span>Relay '+(S.relay?"ON":"OFF")+'</span> &nbsp;<b>Why:</b> '+esc(R.reason)+'.'+(R.d&&R.d.block?' <a href="#rules">See the rule →</a>':"")+'</p>';
+
+  // Control as a sentence
+  h+='<div class="kicker">How I decide</div>';
+  const clk=S.clockValid;
+  const modeOpts=[
+    {v:"auto",label:"by price",desc:"Follow your price rules (Auto)."},
+    {v:"schedule_price",label:"on a schedule, and by price otherwise",desc:"Schedule windows force ON; price rules the rest of the time.",disabled:!clk},
+    {v:"schedule",label:"on a schedule only",desc:"ON inside windows, OFF outside.",disabled:!clk},
+    {v:"manual_on",label:"always on",desc:"Manual ON — ignore prices."},
+    {v:"manual_off",label:"always off",desc:"Manual OFF — ignore prices."}];
+  const modeLabel=modeOpts.find(o=>o.v===mk).label;
+  let s='I\'m deciding '+tok(modeLabel,{type:"choice",title:"How should I decide?",options:modeOpts,get:()=>mk,help:clk?null:"Schedule options need the clock — it isn't set yet.",
+     set:v=>{if(v==="schedule_price"){C.mode="schedule";C.schedFall="price";}else if(v==="schedule"){C.mode="schedule";C.schedFall="off";}else C.mode=v;C.until=null;},
+     after:()=>{const R2=evaluate(true);render();toast("Now deciding "+modeOpts.find(o=>o.v===modeKey()).label+" — relay "+(R2.relay?"ON":"OFF")+".");}});
+  if(C.mode==="manual_on"||C.mode==="manual_off"){
+    const untilOpts=[{v:null,label:"until I change it",desc:"Stays this way (survives a restart)."}];
+    if(clk&&M.now){[1,2,4,8].forEach(n=>{const h2=(M.now.h+n)%24;untilOpts.push({v:pad(h2)+":"+pad(M.now.m),label:"for "+n+" hour"+(n>1?"s":""),desc:"until "+fhm(h2,M.now.m)});});
+      ["06:00","07:00"].forEach(t=>untilOpts.push({v:t,label:"until "+fT(t),desc:"then back to automatic"}));}
+    s+=', '+tok(C.until?"until "+fT(C.until):"until I change it",{type:"choice",title:"For how long?",options:untilOpts,get:()=>C.until,help:clk?"Timed overrides are dropped on restart, since the clock is lost.":"“For N hours” and “until” need the clock, which isn't set yet.",set:v=>{C.until=v;},after:()=>{evaluate(true);render();toast(C.until?"OK — until "+fT(C.until)+".":"OK — until you change it.");}});
+  }
+  s+='. ';
+  s+=(C.mode==="manual_on"?'When I\'m back on automatic, I\'ll ':'I\'ll ')+'never charge past '+tok(C.socTarget?C.socTarget+"%":"no limit",{type:"num",title:"Stop charging at this battery level",unit:"%",get:()=>C.socTarget,allowEmpty:true,help:"Leave empty for no limit (I still stop at 100%). Doesn't apply to “always on”.",
+     validate:v=>v===null?null:(!Number.isInteger(v)||v<1||v>100?"Enter a whole number from 1 to 100, or leave empty.":null),set:v=>{C.socTarget=v;},after:()=>{evaluate(true);render();toast(C.socTarget?"Battery limit set to "+C.socTarget+"%.":"Battery limit removed.");}})+'.';
+  h+='<p style="font-size:19px">'+s+'</p>';
+
+  // Facts
+  h+='<div class="kicker">The numbers</div><div class="facts">';
+  const priceV=S.pricesKnown&&S.price!=null?fc(S.price):"unknown";
+  h+=fact("Price now",priceV,S.pricesKnown?(S.estimated?"<b>estimated (day-ahead)</b> · 5-min feed "+ago(S.ageMin):"5-min average · updated "+ago(S.ageMin)):"no prices yet");
+  h+=fact("Cheapest by 7 am",lw==null?"—":fc(lw),mp==null?"needs prices":"+ "+ft(M.min_offset)+" margin = <b>"+fc(mp)+"</b> for “min”");
+  const cs={charging:"Charging",online:"Online, idle",asleep:"Asleep",not_detected:"Not detected"}[c.status];
+  h+=fact("Car",cs,c.status==="charging"?c.kw.toFixed(1)+" kW":c.status==="not_detected"?"dongle "+esc(C.mac).slice(-5):"no power drawn");
+  h+=fact("Battery",c.soc!=null?c.soc+"%":"—",c.socAge==null?"from before restart":"last seen "+ago(c.socAge));
+  const se=S.session;
+  h+=fact("This session",se?se.kwh.toFixed(1)+" kWh":"—",se?"since "+se.since+" · $"+(se.cost/100).toFixed(2)+" supply":"not charging");
+  h+=fact("Clock",S.clockValid?"Synced":"Not set",S.clockValid?"NTP · Chicago time":"waiting for NTP");
+  h+=fact("Wi-Fi",esc(S.ssid),S.rssi+" dBm · "+S.ip);
+  h+=fact("Device","v"+S.fw,'up '+upTxt(S.uptime)+' · <a href="#about">details</a>');
+  h+='</div>';
+  h+='<div class="row" style="margin-top:14px"><button class="btn" id="pollBtn" onclick="pollCar()">Check the car now</button><span class="small sans">Asks the OBD dongle for battery level and power. Polls run every '+C.pollOn+' s while on, every '+C.pollOff+' min while off.</span></div>';
+  h+='<div class="kicker">Recently</div><ul class="log">'+M.log.slice(0,4).map(logLi).join("")+'</ul><p class="small"><a href="#history">Full history →</a></p>';
+  return h;
+}
+const fact=(k,v,s)=>'<div class="fact"><div class="k">'+k+'</div><div class="v num">'+v+'</div><div class="s">'+s+'</div></div>';
+const logLi=l=>'<li><time>'+esc(l.t)+'</time><span class="k-'+l.k+'">'+esc(l.msg)+'</span></li>';
+function pollCar(){
+  const b=$("#pollBtn");b.disabled=true;b.innerHTML='<span class="spin"></span> Asking the car…';
+  setTimeout(()=>{const c=M.status.car;
+    if(c.status==="not_detected"){M.log.unshift({t:nowStamp(),k:"err",msg:"Car poll: dongle "+M.config.mac+" not reachable (timeout)."});toast("Couldn't reach the dongle — the Bolt may be out of range.");}
+    else if(c.status==="asleep"){M.log.unshift({t:nowStamp(),k:"info",msg:"Car poll: connected, car asleep (ERROR on 228334)."});toast("Connected, but the Bolt is asleep — kept last battery reading.");}
+    else{c.socAge=0;if(c.status==="charging")c.kw=+(c.kw+(Math.random()-.5)*.2).toFixed(1);M.log.unshift({t:nowStamp(),k:"info",msg:"Car poll: "+c.soc+"%, "+(c.kw||0).toFixed(1)+" kW."});toast("Bolt says "+c.soc+"%"+(c.kw?" at "+c.kw.toFixed(1)+" kW":"")+".");}
+    render();},1400);
+}
+
+/* ---------- Rules ---------- */
+function priceTok(b,key,label){
+  const v=b[key];const mp=minPrice();
+  const lab=v==="min"?"cheapest by 7am (+"+ft(M.min_offset)+")":ft(v);
+  return tok(lab,{type:"price",title:label,unit:"¢/kWh",step:0.1,get:()=>b[key],help:"Supply price only (no delivery). Negative means you're paid to use power.",
+    validate:v=>v==="min"?null:(isNaN(v)||v<-50||v>100?"Enter a price between −50 and 100¢.":null),set:v=>{b[key]=v;}});
+}
+function blockSentence(st,b,i){
+  const n=st.blocks.length,prev=i>0?st.blocks[i-1].soc:null;
+  const socTok=tok(b.soc===0?"any level":b.soc+"% or more",{type:"num",title:"Use this line when battery is at least",unit:"%",get:()=>b.soc,help:"0 means “any level”. Lines are checked top to bottom; the first one the battery reaches wins.",validate:v=>!Number.isInteger(v)||v<0||v>100?"Whole number, 0–100.":null,set:v=>{b.soc=v;}});
+  let s=b.soc===0?(i>0?"Otherwise, at "+socTok+(prev!=null&&prev>0?" below "+prev+"%":""):"At "+socTok):"When battery is "+socTok;
+  s+=": start charging at "+priceTok(b,"price_on","Start charging at or below")+" or less, stop above "+priceTok(b,"price_off","Stop charging above")+", ";
+  const km=b.known_minutes;
+  s+=tok(km?"wait until :"+pad(km)+" past the hour":"no waiting",{type:"num",title:"Wait until this many minutes past the hour",unit:"min",get:()=>km||0,
+    help:"Early in an hour the price average is built from only a few 5-minute readings. Waiting until e.g. :20 makes sure the price is really low. 0 = no waiting.",
+    validate:v=>!Number.isInteger(v)||v<0||v>59?"Whole minutes, 0–59.":null,set:v=>{if(v)b.known_minutes=v;else delete b.known_minutes;}})+(km?" to be sure":"")+".";
+  if(i===n-1&&b.soc>0)s+=' <span class="note">(Also used below '+b.soc+'% — it\'s the last line.)</span>';
+  return s;
+}
+function stateWarnings(D){
+  const W={},G=[];const add=(i,m,e)=>{(W[i]=W[i]||[]).push({m,e});};
+  const names=new Set();
+  D.states.forEach((s,i)=>{
+    if(!s.name.trim())add(i,"Give this state a name.",true);
+    if(names.has(s.name))add(i,"Another state already has this name.",true);names.add(s.name);
+    if(!s.blocks.length)add(i,"Needs at least one charging line.",true);
+    const socs=s.blocks.map(b=>b.soc);if(new Set(socs).size!==socs.length)add(i,"Two lines start at the same battery level — only the first will ever be used.");
+    s.blocks.forEach((b,j)=>{if(b.price_on!=="min"&&b.price_off!=="min"&&+b.price_on>+b.price_off)add(i,"Line "+(j+1)+": start price ("+ft(b.price_on)+") is above the stop price ("+ft(b.price_off)+") — it would switch on and immediately off.");});
+    const unsorted=s.blocks.some((b,j)=>j&&b.soc>s.blocks[j-1].soc);if(unsorted)add(i,"Lines will be put in order (highest battery first) when you save.");
+  });
+  // overlapping entry ranges (PLAN §7.3)
+  const rng=s=>{let lo=-Infinity,li=false,hi=Infinity,hiI=false;s.entry.forEach(c=>{const v=+c.value;
+      if(c.operator===">="||c.operator===">"){const inc=c.operator===">=";if(v>lo||(v===lo&&!inc)){lo=v;li=inc;}}
+      else{const inc=c.operator==="<=";if(v<hi||(v===hi&&!inc)){hi=v;hiI=inc;}}});return {lo,li,hi,hiI};};
+  const desc=r=>(r.lo>-Infinity?(r.li?"≥ ":"> ")+r.lo+"%":"")+(r.lo>-Infinity&&r.hi<Infinity?" and ":"")+(r.hi<Infinity?(r.hiI?"≤ ":"< ")+r.hi+"%":"");
+  for(let a=0;a<D.states.length;a++)for(let b=a+1;b<D.states.length;b++){
+    const A=D.states[a],B=D.states[b];if(!A.entry.length||!B.entry.length)continue;
+    const x=rng(A),y=rng(B);let lo,li,hi,hiI;
+    if(x.lo>y.lo||(x.lo===y.lo&&!x.li)){lo=x.lo;li=x.li;}else{lo=y.lo;li=y.li;}
+    if(x.hi<y.hi||(x.hi===y.hi&&!x.hiI)){hi=x.hi;hiI=x.hiI;}else{hi=y.hi;hiI=y.hiI;}
+    if(lo<hi||(lo===hi&&li&&hiI)){const m="Overlaps with “"+(a===b?"":B.name)+"” ("+desc(x)+" vs "+desc(y)+"): at "+(lo===hi?lo+"%":"some levels")+" both match, and the first one listed wins.";add(a,m);add(b,m.replace(B.name,A.name));}
+  }
+  return W;
+}
+function pRules(){
+  const D=draft(),R=evaluate(false),S=M.status,W=stateWarnings(D);
+  const live=R.d&&!Draft.dirty?R.d:(R.d||null);
+  let h='<div class="rules-grid"><div>';
+  h+='<h2>Price rules</h2>';
+  if(R.kind==="price"&&R.d&&R.d.block){const d=R.d;
+    h+='<p class="lede" style="font-size:21px">Right now I\'m in <b>'+esc(d.state)+'</b>'+(d.how==="forced"?" (because you chose it)":d.how==="entered"?"":" (still, from earlier)")+' and following line '+(d.bi+1)+': start at '+ft(d.on)+' or less, stop above '+ft(d.off)+'. The price is '+fc(S.price)+', so the charger is '+(S.relay?"<b>on</b>":"<b>off</b>")+'.</p>';}
+  else h+='<p class="lede" style="font-size:21px">Price rules aren\'t in charge right now — '+esc(R.reason.charAt(0).toLowerCase()+R.reason.slice(1))+'. They\'ll take over when '+(R.kind==="default"?"the clock and prices are back":"you choose “by price” on the Today page")+'.</p>';
+  h+='<p class="small">Each <b>state</b> is a mood — e.g. “keep it topped up” or “only charge when nearly free”. I move into a state when the battery matches its rule and stay there until another state\'s rule matches. Inside a state, the battery level picks which <b>line</b> applies. Click any <span class="tok ro" style="cursor:text">highlighted value</span> to change it.</p>';
+  const selOpts=[{v:"",label:"on my own",desc:"Move between states based on the battery."}].concat(D.states.map(s=>({v:s.name,label:"always “"+esc(s.name)+"”",desc:"Ignore entry rules and use this state."})));
+  h+='<p style="font-size:19px">Choose the state '+tok(D.sel?"always “"+esc(D.sel)+"”":"on my own",{type:"choice",title:"Which state should I use?",options:selOpts,get:()=>D.sel,set:v=>{D.sel=v;D.dirty=true;}})+'. ';
+  h+='“Cheapest by 7am” means the lowest day-ahead price before 7 am'+(lowestBy7am()!=null?" (now "+fc(lowestBy7am())+")":"")+' plus a margin of '+tok(ft(M.min_offset),{type:"num",title:"Margin added to the cheapest-by-7am price",unit:"¢",step:0.1,get:()=>M.min_offset,validate:v=>isNaN(v)||v<-10||v>10?"Between −10 and 10¢.":null,set:v=>{M.min_offset=v;},after:()=>{render();toast("Margin saved: "+ft(M.min_offset)+".");}})+'.</p>';
+
+  D.states.forEach((s,i)=>{
+    const isCur=R.d&&R.d.si===i&&!R.d.usedDefault;
+    h+='<section class="card'+(isCur?" cur":"")+'" data-st="'+i+'"><div class="card-h">'+tok(esc(s.name)||"(unnamed)",{type:"text",title:"Rename state",get:()=>s.name,validate:v=>!v?"A name is required.":D.states.some(x=>x!==s&&x.name===v)?"That name is taken.":null,set:v=>{if(D.sel===s.name)D.sel=v;s.name=v;D.dirty=true;}})
+      +(isCur?'<span class="tag">Current state</span>':"")+(D.sel===s.name?'<span class="tag">Chosen by you</span>':"")+'</div>';
+    h+='<button class="x del" onclick="delState('+i+')" title="Delete state">Delete</button>';
+    // entry
+    if(!s.entry.length)h+='<p class="sent">I never switch to <b>'+esc(s.name)+'</b> on my own — only when you choose it above. <button class="btn link" onclick="addCond('+i+')">Add a battery rule</button></p>';
+    else{h+='<p class="sent">Switch to <b>'+esc(s.name)+'</b> when battery is ';
+      h+=s.entry.map((c,j)=>(j?" and ":"")+tok(OPS[c.operator],{type:"choice",title:"Compare battery level",options:Object.keys(OPS).map(k=>({v:k,label:OPS[k],desc:k+" — "+(k.length>1?"includes":"excludes")+" the value itself"})),get:()=>c.operator,set:v=>{c.operator=v;}})
+        +" "+tok(c.value+"%",{type:"num",title:"Battery level",unit:"%",get:()=>c.value,validate:v=>!Number.isInteger(v)||v<0||v>100?"Whole number, 0–100.":null,set:v=>{c.value=v;}})
+        +(s.entry.length>1?'<button class="x" title="Remove condition" onclick="delCond('+i+','+j+')">×</button>':"")).join("");
+      h+='. <button class="btn link" onclick="addCond('+i+')">+ and…</button>'+(s.entry.length===1?' <button class="btn link" onclick="delCond('+i+',0)">never automatically</button>':"")+'</p>';}
+    // blocks
+    h+='<ol class="blocks">'+s.blocks.map((b,j)=>'<li data-bl="'+j+'" class="'+(isCur&&R.d.bi===j?"act":"")+'">'+blockSentence(s,b,j)+(s.blocks.length>1?'<button class="x" title="Remove line" onclick="delBlock('+i+','+j+')">×</button>':"")+'</li>').join("")+'</ol>';
+    h+='<button class="add" onclick="addBlock('+i+')">+ add a battery level</button>';
+    if(W[i])h+='<ul class="warns">'+W[i].map(w=>'<li class="'+(w.e?"e":"")+'">'+esc(w.m)+'</li>').join("")+'</ul>';
+    h+='</section>';
+  });
+  h+='<button class="add" onclick="addState()">+ add a state</button>';
+  h+='<p class="small" style="margin-top:14px">If no state\'s battery rule matches, I stay in whichever state I was already in. That gap is what stops me flip-flopping (e.g. Разряд from 80% up, Заряд at 20% and below — anywhere between, I keep the last one).</p>';
+  if(D.dirty){const errs=Object.values(W).flat().filter(w=>w.e).length;
+    h+='<div class="savebar"><span class="msg">You have unsaved rule changes. The simulator is already using them.'+(errs?' <b style="color:var(--err)">Fix '+errs+' problem'+(errs>1?"s":"")+' first.</b>':"")+'</span><button class="btn quiet" onclick="discardRules()">Discard</button><button class="btn primary" onclick="saveRules()"'+(errs?" disabled":"")+'>Save rules</button></div>';}
+  // raw
+  h+='<details class="raw" id="rawd"><summary>Raw JSON (logic.json) — import / export</summary><p class="small">This is exactly what\'s stored on the device. Paste an existing <code>logic.json</code> and press “Use this JSON” to load it into the editor (you\'ll still need to save).</p><textarea id="rawTa" spellcheck="false">'+esc(JSON.stringify(toJson(D),null,2))+'</textarea><div class="ferr small" id="rawErr" style="color:var(--err)"></div><div class="row"><button class="btn" onclick="rawApply()">Use this JSON</button><button class="btn quiet" onclick="rawCopy()">Copy</button><button class="btn quiet" onclick="rawDownload()">Download</button></div></details>';
+  h+='</div>';
+  h+=simHtml();
+  h+='</div>';
+  return h;
+}
+const markDirty=()=>{draft().dirty=true;};
+function rerules(){const o=$("#rawd")&&$("#rawd").open;render();if(o)$("#rawd").open=true;}
+afterEdit=()=>{if(page()==="rules"){Draft&&(Draft.dirty=true);rerules();}else{if(page()==="schedule")evaluate(true);render();}};
+function addCond(i){const s=draft().states[i];s.entry.push({type:"soc",operator:s.entry.length?"<":">=",value:s.entry.length?100:50});markDirty();rerules();}
+function delCond(i,j){draft().states[i].entry.splice(j,1);markDirty();rerules();}
+function addBlock(i){const s=draft().states[i];const used=new Set(s.blocks.map(b=>b.soc));let v=50;while(used.has(v)&&v<100)v+=5;s.blocks.push({soc:v,price_on:0,price_off:1});markDirty();rerules();}
+function delBlock(i,j){draft().states[i].blocks.splice(j,1);markDirty();rerules();}
+function addState(){const D=draft();let n="New state",k=2;while(D.states.some(s=>s.name===n))n="New state "+k++;D.states.push({name:n,entry:[],blocks:[{soc:0,price_on:2,price_off:3}]});markDirty();rerules();toast("Added “"+n+"”. Click its name to rename it.");}
+function delState(i){const D=draft(),s=D.states[i];if(!confirm("Delete the state “"+s.name+"” and its "+s.blocks.length+" line(s)?"))return;D.states.splice(i,1);if(D.sel===s.name)D.sel="";markDirty();rerules();}
+function discardRules(){Draft=null;render();toast("Changes discarded.");}
+function saveRules(){
+  const D=draft(),W=stateWarnings(D);
+  D.states.forEach(s=>s.blocks.sort((a,b)=>b.soc-a.soc));
+  const nWarn=Object.values(stateWarnings(D)).flat().filter(w=>!w.e).length;
+  M.logic=toJson(D);Draft=null;
+  M.log.unshift({t:nowStamp(),k:"info",msg:"Price rules saved ("+Object.keys(M.logic.states).length+" states)."});
+  const R=evaluate(true);render();
+  toast("Rules saved"+(nWarn?" — with "+nWarn+" warning"+(nWarn>1?"s":"")+" to look at":"")+". Relay is "+(R.relay?"ON":"OFF")+".");
+}
+function rawApply(){
+  const e=$("#rawErr");let j;try{j=JSON.parse($("#rawTa").value);}catch(x){e.textContent="That isn't valid JSON: "+x.message;return;}
+  if(!j||typeof j.states!=="object"||Array.isArray(j.states)){e.textContent="Expected an object with a “states” key.";return;}
+  for(const [n,s] of Object.entries(j.states)){
+    if(!Array.isArray(s.charging_logic)&&n!=="default"){e.textContent="State “"+n+"” has no charging_logic array.";return;}
+    for(const b of s.charging_logic||[]){if(typeof b.soc!=="number"||!(typeof b.price_on==="number"||b.price_on==="min")||!(typeof b.price_off==="number"||b.price_off==="min")){e.textContent="State “"+n+"”: each line needs soc (number), price_on and price_off (number or \"min\").";return;}}
+    for(const c of s.entry_conditions||[]){if(c.type!=="soc"||!OPS[c.operator]||typeof c.value!=="number"){e.textContent="State “"+n+"”: entry conditions need type \"soc\", an operator (> >= < <=) and a numeric value.";return;}}
+  }
+  Draft=toArr(j);Draft.dirty=true;render();toast("Loaded "+Draft.states.length+" states from JSON — review, then save.");
+}
+function rawCopy(){const t=$("#rawTa");t.select();try{navigator.clipboard.writeText(t.value).then(()=>toast("Copied."),()=>{document.execCommand("copy");toast("Copied.");});}catch(x){document.execCommand("copy");toast("Copied.");}}
+function rawDownload(){const a=document.createElement("a");a.href="data:application/json;charset=utf-8,"+encodeURIComponent($("#rawTa").value);a.download="logic.json";a.click();}
+
+/* ---------- Try it (simulator) ---------- */
+let SIM=null;
+function simDefaults(){const S=M.status;return {soc:S.car.soc==null?50:S.car.soc,price:S.price==null?2:S.price,min:M.now?M.now.m:30,relay:S.relay,sticky:S.sticky};}
+function simHtml(){
+  if(!SIM)SIM=simDefaults();const D=draft();
+  return '<aside class="sim" id="sim"><h3>Try it</h3><p class="small" style="margin:0">Move the sliders to see what I\'d do. '+(D.dirty?"Uses your <b>unsaved</b> rules.":"Uses your saved rules.")+'</p>'
+  +'<label>Battery <b id="sv-soc"></b><input type="range" min="0" max="100" step="1" id="s-soc" value="'+SIM.soc+'"></label>'
+  +'<label>Price <b id="sv-price"></b><input type="range" min="-3" max="8" step="0.1" id="s-price" value="'+SIM.price+'"></label>'
+  +'<label>Minutes past the hour <b id="sv-min"></b><input type="range" min="0" max="59" step="1" id="s-min" value="'+SIM.min+'"></label>'
+  +'<label>Charger is currently <span class="seg" id="s-relay"><button type="button" data-v="1">on</button><button type="button" data-v="0">off</button></span></label>'
+  +'<label>Last state was <select id="s-sticky">'+D.states.map(s=>'<option'+(s.name===SIM.sticky?" selected":"")+'>'+esc(s.name)+'</option>').join("")+(D.states.some(s=>s.name===SIM.sticky)?"":'<option selected>'+esc(SIM.sticky)+'</option>')+'</select></label>'
+  +'<div class="simout" id="simout"></div><button class="btn link" onclick="SIM=simDefaults();rerules()">Reset to right now</button></aside>';
+}
+function simRun(){
+  const sim=$("#sim");if(!sim)return;const D=draft();
+  const bind=(id,k,f)=>{const el=$("#s-"+id);el.oninput=()=>{SIM[k]=f(el.value);simRun();};};
+  if(!sim._b){sim._b=1;bind("soc","soc",Number);bind("price","price",Number);bind("min","min",Number);
+    $("#s-sticky").onchange=e=>{SIM.sticky=e.target.value;simRun();};
+    $("#s-relay").onclick=e=>{const b=e.target.closest("button");if(b){SIM.relay=b.dataset.v==="1";simRun();}};}
+  $("#sv-soc").textContent=SIM.soc+"%";$("#sv-price").textContent=fc(SIM.price);$("#sv-min").textContent=":"+pad(SIM.min);
+  $$("#s-relay button").forEach(b=>b.classList.toggle("sel",(b.dataset.v==="1")===SIM.relay));
+  const mp=minPrice()==null?1.0:minPrice();
+  const d=decide(D,SIM.soc,SIM.price,SIM.min,SIM.relay,SIM.sticky,mp);
+  $$(".blocks li.hit").forEach(e=>e.classList.remove("hit"));
+  let o="<ol>";
+  if(d.how==="forced")o+="<li>You've told me to always use <b>"+esc(d.state)+"</b>.</li>";
+  else if(d.how==="entered")o+="<li>"+SIM.soc+"% is "+d.conds.map(c=>OPS[c.operator]+" "+c.value+"%").join(" and ")+" → switch to <b>"+esc(d.state)+"</b>.</li>";
+  else o+="<li>No state's battery rule matches "+SIM.soc+"%, so I stay in <b>"+esc(d.state)+"</b>.</li>";
+  let final=null,why="";
+  if(d.none){o+="<li>That state has no charging lines (and there's no “default” state) → I'd use your default.</li>";final=M.config.defaultRelay;}
+  else{
+    const b=d.block;const st=D.states[d.si];
+    const li=$('.card[data-st="'+d.si+'"] li[data-bl="'+d.bi+'"]');if(li)li.classList.add("hit");
+    o+="<li>"+(d.usedDefault?"Using the “default” state's lines. ":"")+(d.fallback?SIM.soc+"% is below every line, so the last one applies":SIM.soc+"% → line "+(d.bi+1)+" ("+(b.soc?b.soc+"% or more":"any level")+")")+": start ≤ "+(b.price_on==="min"?"cheapest-by-7am "+fc(mp):ft(d.on))+", stop above "+(b.price_off==="min"?"cheapest-by-7am "+fc(mp):ft(d.off))+(b.known_minutes?", wait until :"+pad(b.known_minutes):"")+".</li>";
+    if(d.noMin){o+="<li>No forecast for “min” → default.</li>";final=M.config.defaultRelay;}
+    else{
+      let t="";
+      if(SIM.relay&&SIM.price>d.off)t=fc(SIM.price)+" is above "+ft(d.off)+" → <b>turn off</b>.";
+      else if(SIM.relay&&!d.enough)t="It's only :"+pad(SIM.min)+", before :"+pad(b.known_minutes)+" → <b>turn off</b> (not sure enough yet).";
+      else if(!SIM.relay&&SIM.price<=d.on&&d.enough)t=fc(SIM.price)+" is at or below "+ft(d.on)+(b.known_minutes?" and it's past :"+pad(b.known_minutes):"")+" → <b>turn on</b>.";
+      else if(!SIM.relay&&SIM.price<=d.on)t=fc(SIM.price)+" is low enough, but it's only :"+pad(SIM.min)+" → <b>stay off</b> until :"+pad(b.known_minutes)+".";
+      else if(SIM.relay)t=fc(SIM.price)+" is not above "+ft(d.off)+" → <b>stay on</b>.";
+      else t=fc(SIM.price)+" is above "+ft(d.on)+" → <b>stay off</b>.";
+      o+="<li>"+t+"</li>";final=d.relay;
+      const tg=M.config.socTarget;
+      if(final&&tg&&SIM.soc>=tg){o+="<li>But your "+tg+"% limit is reached → <b>off</b>.</li>";final=false;}
+      else if(final&&Math.round(SIM.soc)>=100){o+="<li>But the battery is full → <b>off</b>.</li>";final=false;}
+    }
+  }
+  o+="</ol><div class='verdict'><span class='pill "+(final?"on":"off")+"'><span class='dot'></span>"+(final?"ON":"OFF")+"</span><span>"+(final===SIM.relay?"no change":"switch "+(final?"on":"off"))+"</span></div>";
+  $("#simout").innerHTML=o;
+}
+
+/* ---------- Schedule ---------- */
+function pSchedule(){
+  const C=M.config,S=M.status,w0=inWindow();
+  let h='<h2>Schedule</h2><p class="small">Times when the charger should be on no matter the price — handy for a predictable overnight charge. Times are Chicago time; a window like 10 pm → 2 am runs overnight.</p>';
+  const using=C.mode==="schedule";
+  h+='<div class="banner '+(using?"info":"")+'">'+(using?"The schedule is <b>in use</b>"+(C.schedFall==="price"?", with price rules filling the gaps.":" on its own.")+(w0?" A window is open right now.":""):"The schedule isn't in use right now — you're deciding <b>"+MODES[C.mode]+"</b>. "+(S.clockValid?'<button class="btn link" onclick="useSchedule()">Use the schedule</button>':"(It needs the clock, which isn't set yet.)"))+'</div>';
+  C.schedule.forEach((w,i)=>{
+    const open=w===w0;
+    h+='<p style="font-size:20px;margin:16px 0;padding-left:12px;border-left:3px solid '+(open?"var(--accent)":"var(--rule)")+'">On '+tok(daysText(w.days),{type:"days",title:"Which days?",get:()=>w.days,validate:v=>v.length?null:"Pick at least one day.",set:v=>{w.days=v;}})
+      +', charge from '+tok(fT(w.start),{type:"time",title:"Start",get:()=>w.start,validate:v=>/^\d\d:\d\d$/.test(v)?(v===w.end?"Start and end can't be the same.":null):"Enter a time.",set:v=>{w.start=v;}})
+      +' to '+tok(fT(w.end),{type:"time",title:"End",get:()=>w.end,validate:v=>/^\d\d:\d\d$/.test(v)?(v===w.start?"Start and end can't be the same.":null):"Enter a time.",set:v=>{w.end=v;}})
+      +'.'+(parseHM(w.end).h*60+parseHM(w.end).m<parseHM(w.start).h*60+parseHM(w.start).m?' <span class="small">(overnight)</span>':"")+(open?' <span class="tag">on now</span>':"")+' <button class="x" title="Remove" onclick="delWin('+i+')">×</button></p>';
+  });
+  if(!C.schedule.length)h+='<p class="mute">No windows yet.</p>';
+  h+='<button class="add" onclick="addWin()">+ add a time</button>';
+  h+='<div class="kicker">Outside these times</div><p style="font-size:19px">Outside these times, '+tok(C.schedFall==="price"?"follow the price rules":"keep the charger off",{type:"choice",title:"Outside the windows…",get:()=>C.schedFall,options:[{v:"price",label:"follow the price rules",desc:"“Schedule + price” mode."},{v:"off",label:"keep the charger off",desc:"“Schedule only” mode."}],set:v=>{C.schedFall=v;}})+'.</p>';
+  h+='<p class="small">Your battery limit ('+(C.socTarget?C.socTarget+"%":"none")+') still applies inside windows. Changes save immediately.</p>';
+  return h;
+}
+function useSchedule(){M.config.mode="schedule";const R=evaluate(true);render();toast("Now deciding on a schedule — relay "+(R.relay?"ON":"OFF")+".");}
+function addWin(){M.config.schedule.push({days:[1,2,3,4,5],start:"22:00",end:"02:00"});evaluate(true);render();toast("Added a window — click its values to change them.");}
+function delWin(i){M.config.schedule.splice(i,1);evaluate(true);render();toast("Window removed.");}
+
+/* ---------- History (charts, stats, log) ---------- */
+function priceChart(){
+  const S=M.status,P=M.prices;if(!S.clockValid)return '<p class="mute">No chart until the clock is set — I can\'t place prices on a timeline yet.</p>';
+  const W=700,H=230,l=34,r=10,t=10,b=24,nh=M.now.h+M.now.m/60;
+  const vals=DA_TODAY.concat(P.actual.filter(v=>!isNaN(v)),P.five.map(p=>p[1]));
+  const ymin=Math.floor(Math.min(-0.5,...vals)),ymax=Math.ceil(Math.max(...vals)+0.5);
+  const X=x=>l+(W-l-r)*x/24,Y=y=>t+(H-t-b)*(ymax-y)/(ymax-ymin);
+  let g="";
+  for(let y=ymin;y<=ymax;y++){g+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(y)+'" y2="'+Y(y)+'" stroke="var('+(y===0?"--ink2":"--grid")+')" stroke-width="'+(y===0?1:.7)+'"/>';if((y-ymin)%(ymax-ymin>8?2:1)===0)g+='<text x="'+(l-6)+'" y="'+(Y(y)+4)+'" text-anchor="end">'+neg(String(y))+'</text>';}
+  for(let x=0;x<=24;x+=3)g+='<text x="'+X(x)+'" y="'+(H-6)+'" text-anchor="middle">'+(x===24?"":fhs(x).replace(" ",""))+'</text>';
+  (S.onSpans||[]).forEach(sp=>{g+='<rect x="'+X(sp[0])+'" y="'+t+'" width="'+(X(sp[1])-X(sp[0]))+'" height="'+(H-t-b)+'" fill="var(--accent-soft)"/>';});
+  const step=(arr,until)=>{let d="";arr.forEach((v,h)=>{if(isNaN(v)||h>=until)return;d+=(d?"L":"M")+X(h)+","+Y(v)+"H"+X(Math.min(h+1,24));});return d;};
+  g+='<path d="'+step(DA_TODAY,24)+'" fill="none" stroke="var(--mute)" stroke-dasharray="4 3" stroke-width="1.5"/>';
+  g+='<path d="'+step(P.actual,24)+'" fill="none" stroke="var(--accent)" stroke-width="2.2"/>';
+  if(P.five.length)g+='<polyline points="'+P.five.map(p=>X(p[0])+","+Y(p[1])).join(" ")+'" fill="none" stroke="var(--vermil)" stroke-width="1.6"/>';
+  g+='<line x1="'+X(nh)+'" x2="'+X(nh)+'" y1="'+t+'" y2="'+(H-b)+'" stroke="var(--ink)" stroke-width="1"/><text x="'+(X(nh)+4)+'" y="'+(t+10)+'" style="fill:var(--ink)">now</text>';
+  // y-axis label
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Today\'s prices in cents per kWh">'+g+'</svg>';
+}
+function powerChart(){
+  const S=M.status;if(!S.clockValid)return "";
+  const W=700,H=110,l=34,r=34,t=8,b=20,nh=M.now.h+M.now.m/60,X=x=>l+(W-l-r)*x/24;
+  const spans=S.onSpans||[],soc0=S.car.soc||50;const charging=S.car.status==="charging"||S.car.status==="online";
+  const kwAt=x=>spans.some(s=>x>=s[0]&&x<s[1])&&!(S.car.status==="not_detected"&&x>=spans[spans.length-1][0])?(S.car.kw||6.8):0;
+  const onBetween=(a,c)=>{let s=0;for(let x=a;x<c;x+=1/12)s+=kwAt(x)>0?1/12:0;return s;};
+  let pa="M"+X(0)+","+(H-b),sl="";
+  for(let x=0;x<=nh;x+=1/12){const k=kwAt(x),yk=t+(H-t-b)*(1-k/8);pa+="L"+X(x)+","+yk;const soc=soc0-11*onBetween(x,nh)*(charging?1:0);sl+=(sl?"L":"M")+X(x)+","+(t+(H-t-b)*(1-soc/100));}
+  pa+="L"+X(nh)+","+(H-b)+"Z";
+  let g='<path d="'+pa+'" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1"/><path d="'+sl+'" fill="none" stroke="var(--ink2)" stroke-width="1.6"/>';
+  g+='<text x="'+(l-6)+'" y="'+(t+8)+'" text-anchor="end">8kW</text><text x="'+(l-6)+'" y="'+(H-b)+'" text-anchor="end">0</text><text x="'+(W-r+4)+'" y="'+(t+8)+'">100%</text><text x="'+(W-r+4)+'" y="'+(H-b)+'">0%</text>';
+  for(let x=0;x<=24;x+=3)g+='<text x="'+X(x)+'" y="'+(H-5)+'" text-anchor="middle">'+(x===24?"":fhs(x).replace(" ",""))+'</text>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Charging power and battery today">'+g+'</svg>';
+}
+function dailyChart(){
+  const W=700,H=150,l=34,r=10,t=14,b=22,n=M.daily.length,max=Math.ceil(Math.max(...M.daily.map(d=>d.kwh))/10)*10,bw=(W-l-r)/n;
+  let g='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+(H-b)+'" y2="'+(H-b)+'" stroke="var(--ink2)"/><text x="'+(l-6)+'" y="'+(t+4)+'" text-anchor="end">'+max+'</text>';
+  M.daily.forEach((d,i)=>{const hgt=(H-t-b)*d.kwh/max,x=l+i*bw+bw*.18;g+='<rect x="'+x+'" y="'+(H-b-hgt)+'" width="'+(bw*.64)+'" height="'+hgt+'" fill="var('+(i===n-1?"--accent":"--ink2")+')" opacity="'+(i===n-1?1:.55)+'"><title>'+d.label+": "+d.kwh.toFixed(1)+" kWh, $"+(d.cost/100).toFixed(2)+'</title></rect>';
+    if(i%2===n%2||i===n-1)g+='<text x="'+(x+bw*.32)+'" y="'+(H-6)+'" text-anchor="middle">'+d.label+'</text>';});
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Energy per day, last two weeks">'+g+'</svg>';
+}
+function pHistory(){
+  const tot=M.daily.reduce((a,d)=>a+d.kwh,0),cost=M.daily.reduce((a,d)=>a+d.cost,0);
+  let h='<h2>History</h2>';
+  h+='<div class="kicker">Today\'s prices</div><p class="small">Shaded where the charger was on. '+(M.prices.five.length?"":"(No recent 5-minute readings — showing the forecast.)")+'</p>';
+  h+='<div class="legend"><span><i style="border-color:var(--mute);border-top-style:dashed"></i>day-ahead forecast</span><span><i style="border-color:var(--accent)"></i>actual hourly</span><span><i style="border-color:var(--vermil)"></i>5-minute</span><span><i style="border:0;height:10px;width:14px;background:var(--accent-soft)"></i>charger on</span></div>';
+  h+=priceChart();
+  if(M.status.clockValid)h+='<div class="legend" style="margin-top:12px"><span><i style="border:0;height:10px;width:14px;background:var(--accent-soft);outline:1px solid var(--accent)"></i>charging power (kW, left)</span><span><i style="border-color:var(--ink2)"></i>battery (%, right)</span></div>'+powerChart();
+  h+='<div class="kicker">The last two weeks</div><p>You put <b>'+tot.toFixed(0)+' kWh</b> into the Bolt for <b>$'+(cost/100).toFixed(2)+'</b> in supply charges — an average of <b>'+(cost/tot).toFixed(1)+'¢</b> per kWh.</p>'+dailyChart();
+  h+='<div class="kicker">By month</div><div class="tblw"><table><tr><th>Month</th><th class="r">kWh</th><th class="r">Supply cost</th><th class="r">Avg</th></tr>'+M.months.map(m=>'<tr><td>'+m.m+'</td><td class="r">'+m.kwh.toFixed(1)+'</td><td class="r">$'+(m.cost/100).toFixed(2)+'</td><td class="r">'+(m.cost/m.kwh).toFixed(1)+'¢</td></tr>').join("")+'</table></div>';
+  h+='<div class="kicker">Charging sessions</div><div class="tblw"><table><tr><th>When</th><th>Battery</th><th class="r">kWh</th><th class="r">Cost</th></tr>'+M.sessions.map(s=>'<tr><td>'+s.d+'<br><span class="mute">'+s.s+' – '+s.e+'</span></td><td>'+(s.nc?'<span style="color:var(--warn)">on, but car didn\'t charge</span>':s.soc0+'% → '+s.soc1+'%')+'</td><td class="r">'+s.kwh.toFixed(1)+'</td><td class="r">'+(s.cost<0?"−":"")+'$'+Math.abs(s.cost/100).toFixed(2)+'</td></tr>').join("")+'</table></div>';
+  h+='<div class="kicker">Diary</div><p class="small">Every switch, notification and error. Before the clock syncs, times show as time since restart.</p><ul class="log">'+M.log.map(logLi).join("")+'</ul>';
+  return h;
+}
+
+/* ---------- Settings ---------- */
+let SET=null,SETERR={},scanState=null,pickNet=null;
+function setDraft(){if(!SET){const C=M.config;SET={pushEnabled:C.pushover.enabled,token:C.pushover.token,user:C.pushover.user,device:C.pushover.device,mac:C.mac,pollOn:C.pollOn,pollOff:C.pollOff,thresholdW:C.thresholdW,sign:C.sign,relayActiveHigh:C.relayActiveHigh,defaultRelay:C.defaultRelay,probeDelay:C.probeDelay,staleMin:C.staleMin,fullHold:C.fullHold,wifiTimeout:C.wifiTimeout,dirty:false};}return SET;}
+function fld(id,label,input,help){return '<div class="field"><label for="f-'+id+'">'+label+'</label>'+input+(SETERR[id]?'<div class="ferr">'+SETERR[id]+'</div>':"")+(help?'<div class="help">'+help+'</div>':"")+'</div>';}
+const inp=(id,type,val,extra)=>'<input id="f-'+id+'" data-k="'+id+'" type="'+type+'" value="'+esc(val)+'" '+(extra||"")+(SETERR[id]?' class="bad"':"")+'>';
+function pSettings(){
+  const s=setDraft(),S=M.status;
+  let h='<h2>Settings</h2><p class="small">Everything the device needs to know, in one place. Firmware updates and the technical readout live on <a href="#about">About this device</a>.</p>';
+  // Wi-Fi
+  h+='<fieldset><legend>Wi-Fi</legend><p class="intro">Connected to <b>'+esc(S.ssid)+'</b> ('+S.rssi+' dBm, '+(S.rssi>-67?"good":"weak")+') at <b>'+S.ip+'</b> · also <b>charger.local</b> where supported.</p>';
+  h+='<div class="row"><button class="btn" onclick="wifiScan()"'+(scanState==="busy"?" disabled":"")+'>'+(scanState==="busy"?'<span class="spin"></span> Looking…':"Look for networks")+'</button></div>';
+  if(Array.isArray(scanState))h+='<ul class="nets">'+scanState.map((n,i)=>'<li onclick="pickNet='+i+';render()"><span>'+esc(n.ssid)+(n.ssid===S.ssid?" <span class='mute'>(current)</span>":"")+'</span><span class="mute">'+n.rssi+' dBm '+(n.lock?"🔒":"")+'</span></li>').join("")+'</ul>';
+  if(pickNet!=null&&Array.isArray(scanState)){const n=scanState[pickNet];h+='<div class="field"><label for="f-wpass">Password for '+esc(n.ssid)+'</label><input id="f-wpass" type="password" autocomplete="off">'+(SETERR.wpass?'<div class="ferr">'+SETERR.wpass+'</div>':"")+'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="wifiJoin()">Save and connect</button><button class="btn quiet" onclick="pickNet=null;render()">Cancel</button></div></div>';}
+  h+='<div class="help small" style="font-family:var(--sans);color:var(--mute);margin-top:8px">If the network stops working for '+fld2("wifiTimeout",s.wifiTimeout/60)+' minutes, I open my own hotspot <b>ChargerControl-4F2A</b> (192.168.4.1) so you can fix it — and close it again once Wi-Fi is back. With no saved network, the hotspot opens straight away.</div></fieldset>';
+  // Notifications
+  h+='<fieldset><legend>Notifications</legend><p class="intro">I send one Pushover message each time I switch the charger on or off — never repeats, and nothing for “on but not charging”.</p>';
+  h+='<label class="check"><input type="checkbox" data-k="pushEnabled" '+(s.pushEnabled?"checked":"")+'> Send notifications</label>';
+  h+=fld("token","App token",inp("token","text",s.token,'autocomplete="off" spellcheck="false"'),"From pushover.net → Your Applications. 30 letters and digits.");
+  h+=fld("user","User key",inp("user","text",s.user,'autocomplete="off" spellcheck="false"'),"Shown on your Pushover dashboard.");
+  h+=fld("device","Device (optional)",inp("device","text",s.device,'spellcheck="false"'),"Leave empty to notify all your devices.");
+  h+='<button class="btn" onclick="pushTest()">Send a test message</button></fieldset>';
+  // Car
+  h+='<fieldset><legend>Car connection</legend><p class="intro">How I talk to the Bluetooth OBD dongle in the Bolt.</p>';
+  h+=fld("mac","Dongle address",inp("mac","text",s.mac,'spellcheck="false" autocapitalize="characters"'),"Six pairs like 8C:DE:52:DE:B4:A0.");
+  h+='<div class="field"><label>How often to check the car</label><div class="inl">every '+inp("pollOn","number",s.pollOn,'min="15" max="600"')+' seconds while charging, every '+inp("pollOff","number",s.pollOff,'min="5" max="720"')+' minutes otherwise</div>'+(SETERR.pollOn?'<div class="ferr">'+SETERR.pollOn+'</div>':"")+(SETERR.pollOff?'<div class="ferr">'+SETERR.pollOff+'</div>':"")+'<div class="help">Asking too often while off keeps the car awake and drains its 12 V battery.</div></div>';
+  h+='<div class="field"><label>When is it “charging”?</label><div class="inl">when power is at least '+inp("thresholdW","number",s.thresholdW,'min="50" max="5000"')+' W, counting <select data-k="sign" id="f-sign"><option value="abs"'+(s.sign==="abs"?" selected":"")+'>either direction (not verified yet)</option><option value="pos"'+(s.sign==="pos"?" selected":"")+'>positive as charging</option><option value="neg"'+(s.sign==="neg"?" selected":"")+'>negative as charging</option></select></div>'+(SETERR.thresholdW?'<div class="ferr">'+SETERR.thresholdW+'</div>':"")+'<div class="help">Set the direction once you\'ve seen a real charge — an idle Bolt showed −35 W.</div></div>';
+  h+='<div class="field"><label>Check after switching on</label><div class="inl">wait '+inp("probeDelay","number",s.probeDelay,'min="5" max="300"')+' seconds, then ask the car whether it started (used in the ON notification)</div>'+(SETERR.probeDelay?'<div class="ferr">'+SETERR.probeDelay+'</div>':"")+'</div>';
+  h+='<div class="field"><label>When full</label><div class="inl">keep off for '+inp("fullHold","number",s.fullHold,'min="0" max="1440"')+' minutes after reaching 100%</div><div class="help">0 = just stop.</div></div></fieldset>';
+  // Relay
+  h+='<fieldset><legend>Charger relay</legend><p class="intro">The signal wire on GPIO 4.</p>';
+  h+='<div class="field"><label>Wiring</label><div class="inl">the relay is on when GPIO 4 is <select data-k="relayActiveHigh" id="f-relayActiveHigh"><option value="1"'+(s.relayActiveHigh?" selected":"")+'>high</option><option value="0"'+(!s.relayActiveHigh?" selected":"")+'>low</option></select></div><div class="help">Check on the bench: if “ON” turns the charger off, flip this.</div></div>';
+  h+='<div class="field"><label>When I can\'t decide</label><div class="inl">keep the charger <select data-k="defaultRelay" id="f-defaultRelay"><option value="0"'+(!s.defaultRelay?" selected":"")+'>off</option><option value="1"'+(s.defaultRelay?" selected":"")+'>on</option></select></div><div class="help">Used right after a restart, before the clock syncs, or when prices are missing.</div></div></fieldset>';
+  // Prices
+  h+='<fieldset><legend>Prices</legend><p class="intro">ComEd hourly pricing, supply only.</p><div class="field"><label>Trust prices for</label><div class="inl">'+inp("staleMin","number",s.staleMin,'min="5" max="120"')+' minutes without a fresh 5-minute reading</div>'+(SETERR.staleMin?'<div class="ferr">'+SETERR.staleMin+'</div>':"")+'<div class="help">After that I use the day-ahead forecast (marked “estimated”). If that\'s missing too, I fall back to the default above.</div></div></fieldset>';
+  if(s.dirty)h+='<div class="savebar"><span class="msg">Unsaved settings.</span><button class="btn quiet" onclick="SET=null;SETERR={};render()">Discard</button><button class="btn primary" onclick="saveSettings()">Save settings</button></div>';
+  h+='<p style="margin-top:30px"><a href="#about">About this device →</a> firmware, updates, memory and uptime.</p>';
+  return h;
+}
+function fld2(k,v){return '<input data-k="'+k+'" data-scale="60" type="number" min="1" max="60" value="'+v+'" style="width:64px;padding:3px 6px;border:1px solid var(--rule);background:var(--card);border-radius:3px">';}
+document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset.k;if(!k||page()!=="settings")return;const s=setDraft();
+  const el=e.target;let v=el.type==="checkbox"?el.checked:el.type==="number"?(el.value===""?NaN:Number(el.value)*(el.dataset.scale?+el.dataset.scale:1)):el.value;
+  if(k==="relayActiveHigh"||k==="defaultRelay")v=el.value==="1";
+  s[k]=v;const was=s.dirty;s.dirty=true;validateSettings(false);
+  if(!was){const y=scrollY;render();scrollTo(0,y);const n=$('[data-k="'+k+'"]');if(n&&n.focus){n.focus();if(n.setSelectionRange&&n.type==="text")n.setSelectionRange(n.value.length,n.value.length);}}
+});
+document.addEventListener("change",e=>{const k=e.target.dataset&&e.target.dataset.k;if(k&&page()==="settings"){validateSettings(true);}});
+function validateSettings(show){
+  const s=setDraft(),E={};
+  if(s.pushEnabled&&!/^[A-Za-z0-9]{30}$/.test(s.token))E.token="Should be exactly 30 letters/digits"+(s.token?" (this one is "+s.token.length+")":"")+".";
+  if(s.pushEnabled&&!/^[A-Za-z0-9]{30}$/.test(s.user))E.user="Should be exactly 30 letters/digits.";
+  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(s.mac))E.mac="That doesn't look like a Bluetooth address (e.g. 8C:DE:52:DE:B4:A0).";
+  const rng=(k,a,b,m)=>{if(!Number.isFinite(s[k])||s[k]<a||s[k]>b)E[k]=m;};
+  rng("pollOn",15,600,"While charging: 15–600 seconds.");rng("pollOff",5,720,"Otherwise: 5–720 minutes.");rng("thresholdW",50,5000,"Threshold: 50–5000 W.");
+  rng("probeDelay",5,300,"5–300 seconds.");rng("staleMin",5,120,"5–120 minutes.");rng("fullHold",0,1440,"0–1440 minutes.");rng("wifiTimeout",60,3600,"1–60 minutes.");
+  if(show){SETERR=E;const y=scrollY;render();scrollTo(0,y);}
+  return E;
+}
+function saveSettings(){
+  const E=validateSettings(false);SETERR=E;if(Object.keys(E).length){render();toast("Please fix the highlighted fields.");return;}
+  const s=SET,C=M.config;C.pushover={enabled:s.pushEnabled,token:s.token,user:s.user,device:s.device};
+  ["mac","pollOn","pollOff","thresholdW","sign","relayActiveHigh","defaultRelay","probeDelay","staleMin","fullHold","wifiTimeout"].forEach(k=>C[k]=s[k]);
+  SET=null;SETERR={};M.log.unshift({t:nowStamp(),k:"info",msg:"Settings saved."});evaluate(true);render();toast("Settings saved.");
+}
+function pushTest(){const s=setDraft();if(!s.pushEnabled){toast("Notifications are turned off — tick “Send notifications” first.");return;}
+  const E=validateSettings(true);if(E.token||E.user){toast("Fix the token/user key first.");return;}
+  if(!M.status.clockValid){toast("Can't send yet — HTTPS needs the clock, which isn't set.");return;}
+  toast("Sending…");setTimeout(()=>{M.log.unshift({t:nowStamp(),k:"push",msg:"Pushover test sent."});toast("Test message sent to "+(s.device||"all devices")+".");},900);}
+function wifiScan(){scanState="busy";pickNet=null;render();setTimeout(()=>{scanState=[{ssid:"Syrota-Home",rssi:-61,lock:1},{ssid:"Syrota-Garage",rssi:-54,lock:1},{ssid:"Syrota-Guest",rssi:-63,lock:0},{ssid:"xfinitywifi",rssi:-78,lock:0},{ssid:"NETGEAR-5G-42",rssi:-84,lock:1}];render();},1300);}
+function wifiJoin(){const n=scanState[pickNet],p=$("#f-wpass").value;if(n.lock&&p.length<8){SETERR.wpass="WPA passwords are at least 8 characters.";render();return;}
+  delete SETERR.wpass;M.log.unshift({t:nowStamp(),k:"info",msg:"Wi-Fi changed to "+n.ssid+"."});pickNet=null;scanState=null;render();
+  toast("Saved. Trying "+n.ssid+" for "+Math.round(M.config.wifiTimeout/60)+" min — if it fails, look for the ChargerControl-4F2A hotspot.");}
+
+/* ---------- About this device ---------- */
+let OTA={url:null,err:null,check:null,busy:false,pct:null,phase:""};
+function pAbout(){
+  const S=M.status,C=M.config;if(OTA.url==null)OTA.url=C.otaUrl;
+  const hp=S.heap,kb=b=>(b/1024).toFixed(0)+" KB";
+  let h='<h2>About this device</h2>';
+  h+='<p class="lede" style="font-size:21px">An ESP32-C3 in the garage, running firmware <b>'+S.fw+'</b>. It has been up for '+upTxt(S.uptime)+' since its last restart ('+esc(S.reset.toLowerCase())+').</p>';
+  if(S.rollback)h+='<div class="banner err"><b>Running from rollback.</b> The last update didn\'t confirm itself within 5 minutes (Wi-Fi + one price fetch + web page), so the device went back to the previous version.</div>';
+  else h+='<p class="small">Running normally — not a rollback.</p>';
+  h+='<div class="kicker">Updates</div><p class="small">Updates come over HTTPS from GitHub Releases. I check the manifest, download to the spare slot, verify it and restart.</p>';
+  h+='<div class="field"><label for="f-ota">Update manifest URL</label><input id="f-ota" type="url" value="'+esc(OTA.url)+'" spellcheck="false" style="max-width:none"'+(OTA.err?' class="bad"':"")+'>'+(OTA.err?'<div class="ferr">'+OTA.err+'</div>':"")+'<div class="help">Must start with https://. A direct .bin link also works, but then there\'s no checksum to verify. <button class="btn link" onclick="OTA.url=null;OTA.err=null;M.config.otaUrl=\''+"https://github.com/sergesyrota/charger-cost-control/releases/latest/download/manifest.json"+'\';render()">Reset to default</button></div></div>';
+  h+='<div class="row"><button class="btn" onclick="otaCheck()"'+(OTA.busy?" disabled":"")+'>'+(OTA.busy&&OTA.pct==null?'<span class="spin"></span> Checking…':"Check for updates")+'</button><button class="btn danger" onclick="reboot()">Restart device</button></div>';
+  if(OTA.check){const c=OTA.check;
+    if(c.same)h+='<p>You\'re up to date (<b>'+S.fw+'</b>).</p>';
+    else{h+='<div class="card"><h3>Version '+c.version+' is available</h3><p class="small">You have '+S.fw+'. '+(c.bin?"<b style='color:var(--warn)'>Direct .bin link — no sha256 check.</b>":"Size "+(c.size/1048576).toFixed(2)+" MB · sha256 "+c.sha.slice(0,12)+"…")+'</p><p>'+c.notes+'</p>';
+      if(OTA.pct!=null)h+='<div class="prog"><div style="width:'+OTA.pct+'%"></div></div><p class="small sans">'+OTA.phase+'</p>';
+      else h+='<button class="btn primary" onclick="otaInstall()">Install '+c.version+'</button> <span class="small">The charger stays as it is during the update (about a minute).</span>';
+      h+='</div>';}}
+  h+='<div class="kicker">Health</div><dl class="dl">';
+  h+='<dt>Clock</dt><dd>'+(S.clockValid?"Synced via NTP (America/Chicago)":"<b>Not set</b> — waiting for NTP")+'</dd>';
+  h+='<dt>Wi-Fi</dt><dd>'+esc(S.ssid)+', '+S.rssi+' dBm, '+S.ip+(S.hotspot?" · hotspot on":" · hotspot off")+'</dd>';
+  h+='<dt>Memory</dt><dd>'+kb(hp.free)+' free now, lowest ever '+kb(hp.min)+', largest block '+kb(hp.largest)+'</dd>';
+  h+='<dt>Prices</dt><dd>'+(S.pricesKnown?"5-min feed "+ago(S.ageMin)+(S.estimated?" (stale → using day-ahead)":""):"none yet")+'</dd>';
+  h+='<dt>Car link</dt><dd>Dongle '+esc(C.mac)+' · '+({charging:"charging",online:"online",asleep:"asleep",not_detected:"not detected"})[S.car.status]+'</dd>';
+  h+='<dt>Uptime</dt><dd>'+upTxt(S.uptime)+' · last reset: '+esc(S.reset)+'</dd>';
+  h+='<dt>Firmware</dt><dd>'+S.fw+' (installed '+S.fwDate+') · ESP32-C3 · 4 MB flash</dd></dl>';
+  h+='<p class="small"><a href="#history">The diary →</a> has every event, error and notification.</p>';
+  return h;
+}
+function otaCheck(){
+  const u=$("#f-ota").value.trim();OTA.url=u;OTA.check=null;OTA.pct=null;
+  if(!/^https:\/\/[^\s/]+\.[^\s]+/.test(u)){OTA.err=/^http:\/\//i.test(u)?"Plain http:// isn't allowed — updates must use https://.":"Enter a full https:// address.";render();return;}
+  OTA.err=null;M.config.otaUrl=u;OTA.busy=true;render();
+  setTimeout(()=>{OTA.busy=false;const bin=/\.bin$/i.test(u);
+    OTA.check=M.status.fw==="1.4.0"?{same:true}:{version:"1.4.0",bin,size:1214336,sha:"9f2c41d07be3a5e8c0d1",notes:"Adds the overlap warning for state entry rules, retries Pushover once after 60 s, and fixes the “estimated” price flag after a Wi-Fi drop."};render();},1100);
+}
+function otaInstall(){
+  OTA.busy=true;OTA.pct=0;OTA.phase="Downloading…";render();
+  const iv=setInterval(()=>{OTA.pct=Math.min(100,OTA.pct+7+Math.random()*9);
+    OTA.phase=OTA.pct<100?"Downloading… "+Math.floor(OTA.pct)+"% of 1.16 MB":(OTA.check.bin?"Done (no checksum to verify). Restarting…":"Verifying sha256… OK. Restarting…");
+    if(page()==="about")render();
+    if(OTA.pct>=100){clearInterval(iv);setTimeout(()=>{M.status.fw="1.4.0";M.status.fwDate="today";M.status.uptime=4;M.status.reset="Software (OTA update)";M.status.rollback=false;
+      M.log.unshift({t:nowStamp(),k:"info",msg:"OTA: installed 1.4.0, restarted. Will confirm after Wi-Fi + one price fetch."});OTA={url:null,err:null,check:null,busy:false,pct:null,phase:""};render();toast("Updated to 1.4.0 and restarted.");},1400);}
+  },300);
+}
+function reboot(){if(!confirm("Restart the device now? The relay goes to your default ("+(M.config.defaultRelay?"ON":"OFF")+") until the clock and prices are back."))return;
+  toast("Restarting…");setTimeout(()=>{M.status.uptime=6;M.status.reset="Software (user restart)";M.log.unshift({t:"up 0:00:01",k:"info",msg:"Restart requested from the web page."});render();toast("Back up.");},1500);}
+
+/* ---------- demo switcher ---------- */
+function demoMenu(){$("#demoMenu").innerHTML='<div class="t">Demo scenario</div>'+SCEN.slice(1).map((s,i)=>'<button type="button" data-n="'+(i+1)+'" class="'+(M.scenario===i+1?"sel":"")+'"><b>'+(i+1)+". "+s.name+'</b><br><span class="mute">'+s.desc+'</span></button>').join("");}
+$("#demoBtn").onclick=e=>{e.stopPropagation();demoMenu();$("#demo").classList.toggle("open");};
+$("#demoMenu").onclick=e=>{const b=e.target.closest("button[data-n]");if(!b)return;loadScenario(+b.dataset.n);SIM=null;OTA.check=null;$("#demo").classList.remove("open");render();toast("Scenario: "+SCEN[+b.dataset.n].name);};
+document.addEventListener("click",e=>{if(!e.target.closest("#demo"))$("#demo").classList.remove("open");});
+
+loadScenario(1);render();
+</script>
+</body>
+</html>
