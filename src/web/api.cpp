@@ -717,6 +717,11 @@ void registerRoutes(AsyncWebServer& s) {
   });
   s.on("/api/wifi/scan", HTTP_GET, handleWifiScan);
   onJson(s, "/api/wifi", HTTP_POST, kSmallBody, postWifi);
+  onJson(s, "/api/wifi/forget", HTTP_POST, kSmallBody, [](AsyncWebServerRequest* r, JsonObject) {
+    if (!wifi::hasCredentials()) return sendErr(r, 409, "сеть не сохранена");
+    app::requestWifiForget();
+    sendRaw(r, 202, "{\"rebooting\":true}");
+  });
 }
 
 }  // namespace api

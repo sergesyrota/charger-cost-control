@@ -70,5 +70,6 @@ bool requestOtaCheck(const char* url, std::string& err);   // "" => config ota_u
 bool requestOtaInstall(const char* url, std::string& err); // "" => last checked manifest
 void requestReboot();                                      // flushes stats/state, restarts ~1 s later
 void requestWifi(const char* ssid, const char* password);  // password nullptr/"" => keep (same ssid)
+void requestWifiForget();  // reboot ~1.5 s later, erasing the saved network first => comes up as hotspot
 
 }  // namespace app
