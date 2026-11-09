@@ -147,6 +147,9 @@ Decision decide(const DecisionInput& in) {
   Mode mode = in.ovr.mode;
   const bool manual = mode == Mode::ManualOn || mode == Mode::ManualOff;
   if (manual && overrideExpired(in.ovr, in.clock_valid, in.now.epoch)) mode = Mode::Auto;
+  // A timed override restored after a reboot is unknown until the clock is set (it may have ended
+  // while the board was off): until then -> Auto, i.e. the default relay.
+  if (manual && in.ovr.until && !in.clock_valid) mode = Mode::Auto;
   if (mode == Mode::ManualOn || mode == Mode::ManualOff) {
     const bool on = mode == Mode::ManualOn;
     d.relay = on;

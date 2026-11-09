@@ -75,7 +75,6 @@ bool load(RuntimeState& out) {
     }
     p.end();
   }
-  if (out.ovr.until != 0) out.ovr = Override();   // timed overrides do not survive a reboot
   g_saved = g_latest = out;
   g_dirty = false;
   return ok;

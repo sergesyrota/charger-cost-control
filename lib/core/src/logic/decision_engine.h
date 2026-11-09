@@ -2,7 +2,8 @@
 // Vehicle::getApplicableLogic + controlCharging (§7.3) with LITERAL operators. Pure. Owner: logic.
 //
 // Precedence (first applicable wins):
-//  1. Manual ON/OFF (Override.mode). Overlays do NOT apply to Manual ON.
+//  1. Manual ON/OFF (Override.mode). Overlays do NOT apply to Manual ON. A timed (`until`) override
+//     needs a valid clock; without one it is ignored (Auto -> default).
 //  2. Overlays (auto / schedule / schedule_price): Full (round(soc) >= 100, held full_hold_min) -> OFF
 //     "Bolt is full"; SOC target (enabled && soc >= target) -> OFF "SOC target 80% reached".
 //     Overlays only when SOC is known (not NAN) and fresh (soc_fresh).

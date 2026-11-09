@@ -121,7 +121,8 @@ struct Config {
 
 // ---------------------------------------------------------------- runtime state (NVS "state")
 // The active mode. `until` (epoch) only for manual modes and only with a valid clock; 0 = indefinite.
-// When `until` passes, mode reverts to Auto. Timed overrides are dropped on boot.
+// When `until` passes, mode reverts to Auto. Timed overrides persist across reboots; they apply
+// only once the clock is valid (then expire normally if `until` passed while the board was off).
 struct Override {
   Mode mode = Mode::Auto;
   int64_t until = 0;
