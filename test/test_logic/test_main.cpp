@@ -162,6 +162,11 @@ static void test_precedence_and_default() {
   d = decide(in);
   TEST_ASSERT_TRUE(d.relay);
   TEST_ASSERT_EQUAL_STRING("Ручное ВКЛ — бессрочно", d.reason);
+  in.ovr.until = 1000;            // timed override restored after reboot: ignored until NTP
+  d = decide(in);
+  TEST_ASSERT_FALSE(d.relay);
+  TEST_ASSERT_TRUE(d.src != DecisionSrc::Manual);
+  in.ovr.until = 0;
   // Overlays in auto.
   d = run(-5, 100, true, RAZ);
   TEST_ASSERT_FALSE(d.relay);

@@ -525,8 +525,10 @@ Stats endpoints stream records in chunks (chunked response) — never load a who
 3. Until clock valid **and** prices known: relay = default; UI shows why.
 4. Wi-Fi drops: keep last decision while prices are fresh (§6.3); once stale → default.
 5. Watchdog reset / crash: boots back into step 1 (default), logs reset reason.
-6. Manual override persists across reboot (it's in NVS) **except** timed (`until`) overrides, which
-   are dropped on boot because there's no clock until NTP — revert to auto.
+6. Manual override persists across reboot (it's in NVS), timed (`until`) ones too: until NTP sets
+   the clock a timed override is ignored (relay = default); then it resumes, or expires and logs
+   "Время режима … истекло → Авто" if `until` passed while the board was down. (Changed in v1.6:
+   dropping them turned any crash into a silent Manual → Auto.)
 
 ---
 
